@@ -1,0 +1,391 @@
+{
+  "tasks": {
+    "phase1_foundation": {
+      "task1_1": {
+        "id": "sequential-number-generator",
+        "title": "Sequential Number Generator Service",
+        "effort": "large",
+        "hours": 4,
+        "priority": "critical",
+        "deliverables": [
+          "SequentialNumberGenerator class with atomic counter implementation",
+          "Race condition handling with exponential backoff",
+          "Counter initialization with conditional writes",
+          "Zero-padding utility for 6-digit formatting"
+        ],
+        "acceptance_criteria": [
+          "Atomic increments using DynamoDB ADD operation",
+          "Handle concurrent requests without number collisions",
+          "Initialize counters on first repository use",
+          "Generate sequential numbers shared between Issues and PRs",
+          "Comprehensive test coverage for race conditions"
+        ],
+        "dependencies": ["core-entities"],
+        "blocks": ["task2_1", "task2_2"]
+      },
+      "task1_2": {
+        "id": "comment-id-generator",
+        "title": "Comment ID Generator Utility",
+        "effort": "small",
+        "hours": 1,
+        "priority": "medium",
+        "deliverables": [
+          "CommentIdGenerator class using UUID v4 or ULID",
+          "Unique ID generation within item collections",
+          "Format validation utilities"
+        ],
+        "acceptance_criteria": [
+          "Generate unique comment identifiers",
+          "Support both UUID v4 and ULID formats",
+          "Validate generated ID formats",
+          "Thread-safe generation"
+        ],
+        "dependencies": [],
+        "blocks": ["task3_1", "task3_2"]
+      },
+      "task1_3": {
+        "id": "key-generation-utilities",
+        "title": "Key Generation Utilities",
+        "effort": "medium",
+        "hours": 1,
+        "priority": "medium",
+        "deliverables": [
+          "Number padding utilities",
+          "GSI4 key generation with reverse numbering",
+          "Composite key generation helpers",
+          "Polymorphic key resolution"
+        ],
+        "acceptance_criteria": [
+          "Zero-pad numbers to 6 digits",
+          "Generate GSI4 keys with reverse numbering for open issues",
+          "Create composite keys for reactions and relationships",
+          "Validate key format consistency"
+        ],
+        "dependencies": [],
+        "blocks": ["task2_1", "task4_1"]
+      }
+    },
+    "phase2_core_entities": {
+      "task2_1": {
+        "id": "issue-entity-implementation",
+        "title": "Issue Entity Implementation",
+        "effort": "large",
+        "hours": 4,
+        "priority": "high",
+        "deliverables": [
+          "IssueRecord DynamoDB-Toolbox entity",
+          "IssueRepository with CRUD operations",
+          "GSI4 integration for status queries",
+          "Cross-entity validation with core entities"
+        ],
+        "acceptance_criteria": [
+          "Sequential numbering integration",
+          "GSI4 population for status queries (open/closed)",
+          "Reverse numbering for open issues (999999 - number)",
+          "User and repository validation",
+          "Status change updates GSI4 keys",
+          "Complete test coverage including GSI queries"
+        ],
+        "dependencies": ["task1_1", "task1_3"],
+        "blocks": ["task3_1", "task4_1"]
+      },
+      "task2_2": {
+        "id": "pull-request-entity-implementation",
+        "title": "Pull Request Entity Implementation",
+        "effort": "large",
+        "hours": 4,
+        "priority": "high",
+        "deliverables": [
+          "PullRequestRecord DynamoDB-Toolbox entity",
+          "PullRequestRepository with CRUD operations",
+          "GSI1 integration for repository listing",
+          "Sequential numbering shared with Issues"
+        ],
+        "acceptance_criteria": [
+          "Sequential numbering shared with Issues",
+          "GSI1 population for repository queries",
+          "Branch validation and management",
+          "User and repository validation",
+          "Complete test coverage including GSI queries"
+        ],
+        "dependencies": ["task1_1", "task1_3"],
+        "blocks": ["task3_2", "task4_1"]
+      }
+    },
+    "phase3_discussion_layer": {
+      "task3_1": {
+        "id": "issue-comment-entity-implementation",
+        "title": "Issue Comment Entity Implementation",
+        "effort": "medium",
+        "hours": 3,
+        "priority": "medium",
+        "deliverables": [
+          "IssueCommentRecord DynamoDB-Toolbox entity",
+          "IssueCommentRepository with item collection patterns",
+          "Comment ID generation integration",
+          "Parent issue validation"
+        ],
+        "acceptance_criteria": [
+          "Item collection implementation (shared PK)",
+          "UUID comment ID generation",
+          "Parent issue existence validation",
+          "Chronological ordering in queries",
+          "User validation for comment authors"
+        ],
+        "dependencies": ["task2_1", "task1_2"],
+        "blocks": ["task4_1"]
+      },
+      "task3_2": {
+        "id": "pr-comment-entity-implementation",
+        "title": "PR Comment Entity Implementation",
+        "effort": "medium",
+        "hours": 3,
+        "priority": "medium",
+        "deliverables": [
+          "PRCommentRecord DynamoDB-Toolbox entity",
+          "PRCommentRepository with item collection patterns",
+          "Shared implementation patterns with Issue Comments"
+        ],
+        "acceptance_criteria": [
+          "Same patterns as Issue Comments",
+          "Parent PR existence validation",
+          "Item collection efficiency",
+          "Complete test coverage"
+        ],
+        "dependencies": ["task2_2", "task1_2"],
+        "blocks": ["task4_1"]
+      }
+    },
+    "phase4_interaction_layer": {
+      "task4_1": {
+        "id": "reaction-entity-implementation",
+        "title": "Reaction Entity Implementation",
+        "effort": "large",
+        "hours": 4,
+        "priority": "medium",
+        "deliverables": [
+          "ReactionRecord DynamoDB-Toolbox entity",
+          "ReactionRepository with polymorphic targeting",
+          "Reaction uniqueness enforcement (one per user per target)",
+          "Target validation across entity types"
+        ],
+        "acceptance_criteria": [
+          "Polymorphic targeting (Issues, PRs, Comments)",
+          "Composite key uniqueness enforcement",
+          "Target existence validation",
+          "Reaction type validation (GitHub emoji set)",
+          "Efficient aggregation queries"
+        ],
+        "dependencies": ["task2_1", "task2_2", "task3_1", "task3_2", "task1_3"],
+        "blocks": []
+      },
+      "task4_2": {
+        "id": "reaction-aggregation-service",
+        "title": "Reaction Aggregation Service",
+        "effort": "medium",
+        "hours": 2,
+        "priority": "low",
+        "deliverables": [
+          "ReactionAggregator class for summary calculations",
+          "Efficient reaction counting per target",
+          "Cache-friendly aggregation patterns"
+        ],
+        "acceptance_criteria": [
+          "Count reactions by type per target",
+          "Support all GitHub reaction types",
+          "Efficient query patterns for aggregation",
+          "Integration with Reaction repository"
+        ],
+        "dependencies": ["task4_1"],
+        "blocks": []
+      }
+    },
+    "phase5_relationship_layer": {
+      "task5_1": {
+        "id": "fork-entity-implementation",
+        "title": "Fork Entity Implementation",
+        "effort": "large",
+        "hours": 4,
+        "priority": "medium",
+        "deliverables": [
+          "ForkRecord DynamoDB-Toolbox entity",
+          "ForkRepository with adjacency list patterns",
+          "GSI2 integration for fork tree queries",
+          "Repository relationship validation"
+        ],
+        "acceptance_criteria": [
+          "Adjacency list implementation using GSI2",
+          "Fork relationship integrity validation",
+          "Efficient fork tree traversal",
+          "Repository existence validation for both source/target",
+          "Complete test coverage including tree operations"
+        ],
+        "dependencies": ["core-entities"],
+        "blocks": []
+      },
+      "task5_2": {
+        "id": "star-entity-implementation",
+        "title": "Star Entity Implementation",
+        "effort": "medium",
+        "hours": 3,
+        "priority": "medium",
+        "deliverables": [
+          "StarRecord DynamoDB-Toolbox entity",
+          "StarRepository with many-to-many patterns",
+          "Bidirectional star relationship queries",
+          "User/repository validation"
+        ],
+        "acceptance_criteria": [
+          "Many-to-many relationship implementation",
+          "Efficient user stars query",
+          "Star uniqueness enforcement",
+          "Repository existence validation",
+          "User existence validation"
+        ],
+        "dependencies": ["core-entities"],
+        "blocks": []
+      }
+    },
+    "phase6_integration": {
+      "task6_1": {
+        "id": "cross-entity-validation",
+        "title": "Cross-Entity Validation Integration",
+        "effort": "large",
+        "hours": 3,
+        "priority": "critical",
+        "deliverables": [
+          "ContentEntityValidator class",
+          "Integration with all content repositories",
+          "User and repository existence validation",
+          "Access control validation"
+        ],
+        "acceptance_criteria": [
+          "Validate user existence for all operations",
+          "Validate repository existence for all operations",
+          "Check user access permissions",
+          "Consistent error handling across entities",
+          "Performance optimization for validation calls"
+        ],
+        "dependencies": ["task2_1", "task2_2", "task3_1", "task3_2", "task4_1", "task5_1", "task5_2"],
+        "blocks": []
+      },
+      "task6_2": {
+        "id": "integration-test-suite",
+        "title": "Integration Test Suite",
+        "effort": "large",
+        "hours": 5,
+        "priority": "high",
+        "deliverables": [
+          "Comprehensive integration tests with core entities",
+          "Sequential numbering concurrency tests",
+          "Cross-entity validation tests",
+          "GSI query performance tests"
+        ],
+        "acceptance_criteria": [
+          "Sequential numbering race conditions",
+          "GSI query patterns (GSI1, GSI2, GSI4)",
+          "Cross-entity validation scenarios",
+          "Item collection performance",
+          "Polymorphic reaction targeting",
+          "Fork tree construction",
+          "Many-to-many relationship integrity"
+        ],
+        "dependencies": ["task6_1"],
+        "blocks": []
+      },
+      "task6_3": {
+        "id": "content-entity-factories",
+        "title": "Content Entity Factory Classes",
+        "effort": "medium",
+        "hours": 2,
+        "priority": "medium",
+        "deliverables": [
+          "Factory classes for all content entities",
+          "Realistic test data generation",
+          "Integration with existing test infrastructure"
+        ],
+        "acceptance_criteria": [
+          "IssueFactory with sequential numbering",
+          "PullRequestFactory with branch management",
+          "Comment factories with parent relationships",
+          "ReactionFactory with polymorphic targeting",
+          "Fork and Star factories with relationship validation"
+        ],
+        "dependencies": ["task2_1", "task2_2", "task3_1", "task3_2", "task4_1", "task5_1", "task5_2"],
+        "blocks": []
+      }
+    }
+  },
+  "summary": {
+    "total_estimated_hours": "37-43 hours",
+    "optimized_execution_time": "25 hours (with 4 parallel agents)",
+    "critical_path": ["core-entities", "task1_1", "task2_1", "task2_2", "task4_1", "task6_1"],
+    "blocking_dependencies": [
+      "core-entities must be fully implemented before starting",
+      "Sequential number generator blocks Issue/PR creation",
+      "Issues must be implemented before Issue Comments", 
+      "Pull Requests must be implemented before PR Comments",
+      "All content entities must be complete before cross-entity validation"
+    ],
+    "parallel_opportunities": [
+      "Comment entities can be developed simultaneously",
+      "Fork and Star entities can be developed in parallel",
+      "Utility classes can be implemented alongside entities",
+      "Factory classes can be built parallel with validation"
+    ]
+  },
+  "execution_strategy": {
+    "critical_path_analysis": ["task1_1", "task2_1", "task4_1", "task6_1", "task6_2"],
+    "high_risk_tasks": ["task1_1", "task4_1", "task6_1"],
+    "parallel_execution_phases": {
+      "phase1_foundation": {
+        "duration": "4 hours",
+        "tasks": ["task1_1", "task1_2", "task1_3"],
+        "agents": 2,
+        "focus": "Sequential numbering and utilities",
+        "risk_mitigation": "Prioritize sequential generator testing"
+      },
+      "phase2_core_entities": {
+        "duration": "4 hours", 
+        "tasks": ["task2_1", "task2_2"],
+        "agents": 2,
+        "focus": "Issues and PRs for early feedback",
+        "dependencies": ["task1_1"]
+      },
+      "phase3_content_expansion": {
+        "duration": "4 hours",
+        "tasks": ["task3_1", "task3_2", "task5_1", "task5_2"],
+        "agents": 4,
+        "focus": "Comments and relationships",
+        "early_value": "Comments provide immediate user interaction"
+      },
+      "phase4_complex_integration": {
+        "duration": "7 hours",
+        "tasks": ["task4_1", "task6_1", "task6_3"],
+        "agents": 2,
+        "focus": "Polymorphic reactions and validation",
+        "risk": "Highest complexity phase"
+      },
+      "phase5_testing_polish": {
+        "duration": "6 hours", 
+        "tasks": ["task4_2", "task6_2"],
+        "agents": 2,
+        "focus": "Integration testing and optimization"
+      }
+    },
+    "agent_coordination": {
+      "agent1_critical_path": ["task1_1", "task2_1", "task4_1", "task6_1", "task6_2"],
+      "agent2_utilities_comments": ["task1_2", "task1_3", "task3_1", "task6_3", "task4_2"],
+      "agent3_prs_comments": ["task2_2", "task3_2"],
+      "agent4_relationships": ["task5_1", "task5_2"]
+    },
+    "time_to_value_milestones": {
+      "hour_4": "Sequential generator complete - Issues/PRs can start",
+      "hour_8": "Issues working - Early user feedback possible",
+      "hour_12": "Issues and PRs complete - Core content functionality ready",
+      "hour_16": "Comments working - Full discussion features available",
+      "hour_25": "All entities complete - Ready for production"
+    },
+    "next_action": "Ensure core-entities is complete, then start /spec:implement content-entities task1_1"
+  }
+}

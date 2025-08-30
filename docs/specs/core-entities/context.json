@@ -1,0 +1,70 @@
+{
+  "product_vision": "Implementation of GitHub's complete data model using DynamoDB single table design patterns with DynamoDB-Toolbox for type-safe schema definitions and queries",
+  "existing_features": [],
+  "architecture": {
+    "pattern": "API Layer (Fastify) → Service Layer (Business Logic) → Repository Layer (Data Access) → DynamoDB",
+    "technology_stack": {
+      "database": "DynamoDB with single table design",
+      "orm": "DynamoDB-Toolbox for type-safe schema definitions",
+      "api_framework": "Fastify with TypeScript",
+      "testing": "Jest with DynamoDB Local",
+      "validation": "TypeBox schemas",
+      "linting": "Biome"
+    },
+    "file_structure": {
+      "src/repos/": "Data access layer, DynamoDB-Toolbox scheme",
+      "src/services/": "Business logic services", 
+      "src/api/": "Fastify route handlers",
+      "src/types/": "Typebox Schema"
+    }
+  },
+  "dynamodb_patterns": [
+    "Single Table: All entities in GitHubTable with composite keys",
+    "Item Collections: Related items share partition keys",
+    "Overloaded Attributes: ACCOUNT# prefix for Users/Organizations",
+    "Sparse GSIs: Only items with indexed attributes appear in GSIs",
+    "Zero-Padding: Numeric values padded for lexicographic sorting"
+  ],
+  "entity_keys": {
+    "User": "ACCOUNT#<Username>",
+    "Organization": "ACCOUNT#<OrgName>",
+    "Repository": "REPO#<Owner>#<RepoName>"
+  },
+  "gsi_design": {
+    "GSI1": "Account queries, PR lists by repo",
+    "GSI2": "Repo lookup, fork relationships",
+    "GSI3": "Recent repos by account, user/org lookup",
+    "GSI4": "Repo metadata, issue status queries"
+  },
+  "workflow": "Record Definition → Repository Layer → Service Layer → API Layer → Integration Tests",
+  "testing_strategy": {
+    "layers": [
+      "Router test from request to mocked service",
+      "Service test to mocked repo", 
+      "Repo test against local ddb",
+      "No explicit entities testing (covered in other tests)"
+    ],
+    "tools": "Jest to mock, DynamoDB Local for integration"
+  },
+  "naming_conventions": {
+    "records": "PascalCase (UserEntity, RepositoryEntity)",
+    "repositories": "PascalCase with Repository suffix",
+    "services": "PascalCase with Service suffix",
+    "routes": "PascalCase files",
+    "types": "PascalCase interfaces"
+  },
+  "transformation_pattern": [
+    "fromRequest() - Convert API input to entity format",
+    "toRecord() - Convert to DynamoDB record format", 
+    "toResponse() - Convert to API output format",
+    "validate() - Input validation and business rules"
+  ],
+  "commands": [
+    "pnpm test - Run all tests",
+    "pnpm test:watch - Run tests in watch mode", 
+    "pnpm dev - Start development server",
+    "pnpm format - Format code",
+    "pnpm lint - lint code",
+    "pnpm typecheck - typecheck code"
+  ]
+}

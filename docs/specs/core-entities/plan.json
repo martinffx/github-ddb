@@ -1,0 +1,344 @@
+{
+  "tasks": {
+    "phase1": {
+      "task1_1": {
+        "id": "dependencies-config",
+        "title": "Project Dependencies and Configuration",
+        "effort": "small",
+        "hours": 1,
+        "deliverables": [
+          "Install and configure dependencies: dynamodb-toolbox, @aws-sdk/client-dynamodb, @aws-sdk/lib-dynamodb",
+          "Install dev dependencies: @types/jest, @types/node", 
+          "Configure TypeScript for DynamoDB-Toolbox compatibility"
+        ],
+        "acceptance_criteria": [
+          "All packages installed and versions locked",
+          "TypeScript compiles without errors", 
+          "Package.json includes all required dependencies"
+        ],
+        "dependencies": []
+      },
+      "task1_2": {
+        "id": "dynamodb-docker-setup",
+        "title": "DynamoDB Local Docker Test Setup", 
+        "effort": "small",
+        "hours": 2,
+        "deliverables": [
+          "Docker Compose configuration for DynamoDB Local",
+          "Jest configuration with Docker DynamoDB integration",
+          "Test setup utilities for table creation/destruction",
+          "Environment configuration for local vs AWS"
+        ],
+        "acceptance_criteria": [
+          "Docker Compose starts/stops DynamoDB Local with test suite",
+          "Test tables created with proper schema (PK, SK, GSI1-GSI3)",
+          "Connection configuration switches between local/AWS based on NODE_ENV",
+          "Tests can connect to dockerized DynamoDB instance",
+          "Docker health checks ensure DynamoDB is ready before tests"
+        ],
+        "dependencies": ["task1_1"],
+        "docker_config": {
+          "service": "dynamodb-local",
+          "image": "amazon/dynamodb-local",
+          "ports": ["8000:8000"],
+          "command": ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
+        }
+      },
+      "task1_3": {
+        "id": "table-config-setup", 
+        "title": "Table Configuration and Setup",
+        "effort": "small",
+        "hours": 2,
+        "deliverables": [
+          "GitHubTable configuration with DynamoDB-Toolbox",
+          "Table schema with all GSIs (GSI1, GSI2, GSI3)",
+          "Connection factory for test/production environments"
+        ],
+        "acceptance_criteria": [
+          "Table configured with correct partition/sort keys",
+          "All 3 GSIs configured with proper projection", 
+          "Factory pattern for environment-specific clients",
+          "Table creation script for local development"
+        ],
+        "dependencies": ["task1_2"]
+      }
+    },
+    "phase2": {
+      "task2_1": {
+        "id": "user-record-entity",
+        "title": "UserRecord Entity with Tests",
+        "effort": "medium", 
+        "hours": 3,
+        "deliverables": [
+          "UserRecord entity definition with DynamoDB-Toolbox",
+          "Complete schema with validation rules",
+          "Unit tests for entity validation and key generation",
+          "Test data factory for UserRecord"
+        ],
+        "acceptance_criteria": [
+          "UserRecord follows design schema exactly",
+          "Key generation (PK, SK, GSI1PK/SK, GSI3PK/SK) works correctly",
+          "Validation rules enforce username/email formats",
+          "Default timestamp generation works",
+          "Comprehensive test coverage (>90%)"
+        ],
+        "dependencies": ["task1_3"]
+      },
+      "task2_2": {
+        "id": "organization-record-entity",
+        "title": "OrganizationRecord Entity with Tests",
+        "effort": "medium",
+        "hours": 3, 
+        "deliverables": [
+          "OrganizationRecord entity definition",
+          "Schema with validation for org_name format",
+          "Unit tests for validation and key generation", 
+          "Test data factory for OrganizationRecord"
+        ],
+        "acceptance_criteria": [
+          "OrganizationRecord follows design schema exactly",
+          "Key generation matches UserRecord pattern (ACCOUNT# prefix)",
+          "Validation prevents invalid org_name characters",
+          "Test coverage includes edge cases and error conditions",
+          "Account name collision prevention verified"
+        ],
+        "dependencies": ["task1_3"]
+      },
+      "task2_3": {
+        "id": "repository-record-entity",
+        "title": "RepositoryRecord Entity with Tests", 
+        "effort": "medium",
+        "hours": 4,
+        "deliverables": [
+          "RepositoryRecord entity definition",
+          "Complex schema with all GSI key populations",
+          "Unit tests for multi-GSI key generation",
+          "Test data factory for RepositoryRecord"
+        ],
+        "acceptance_criteria": [
+          "RepositoryRecord follows design with all GSI keys",
+          "Composite key generation (REPO#owner#repo_name) works", 
+          "GSI3 keys properly support owner-based queries",
+          "Validation for owner/repo_name formats",
+          "Test coverage for all key generation patterns"
+        ],
+        "dependencies": ["task1_3"]
+      }
+    },
+    "phase3": {
+      "task3_1": {
+        "id": "key-generator-utility",
+        "title": "KeyGenerator Utility with Tests",
+        "effort": "small",
+        "hours": 2,
+        "deliverables": [
+          "KeyGenerator class with static methods",
+          "Account key generation (users/orgs)",
+          "Repository key generation", 
+          "Validation and error handling"
+        ],
+        "acceptance_criteria": [
+          "Static methods for account(), repository(), timestampSortKey()",
+          "Input validation with descriptive error messages",
+          "Consistent key format generation",
+          "Edge case handling (empty strings, invalid characters)",
+          "100% test coverage on utility functions"
+        ],
+        "dependencies": []
+      },
+      "task3_2": {
+        "id": "error-handling-utilities",
+        "title": "Error Handling and Validation Utilities",
+        "effort": "small", 
+        "hours": 2,
+        "deliverables": [
+          "Custom error classes for domain validation",
+          "Input validation helpers",
+          "DynamoDB error mapping utilities"
+        ],
+        "acceptance_criteria": [
+          "Domain-specific error types (InvalidUsernameError, etc.)",
+          "Validation helpers for common patterns (email, username)",
+          "DynamoDB exception mapping to business errors", 
+          "Error messages provide clear user feedback"
+        ],
+        "dependencies": []
+      }
+    },
+    "phase4": {
+      "task4_1": {
+        "id": "user-repository-implementation", 
+        "title": "UserRepository Implementation with Tests",
+        "effort": "medium",
+        "hours": 4,
+        "deliverables": [
+          "UserRepository interface and implementation",
+          "Full CRUD operations (create, get, update, delete, getByUsername)",
+          "Integration tests with Docker DynamoDB Local",
+          "Error handling for duplicate users"
+        ],
+        "acceptance_criteria": [
+          "All interface methods implemented",
+          "Create operation prevents duplicate usernames",
+          "Update operation maintains updated_at timestamp",
+          "Get operations return null for missing users", 
+          "Integration tests verify DynamoDB interactions with Docker",
+          "Proper error handling for DynamoDB exceptions"
+        ],
+        "dependencies": ["task2_1", "task3_1", "task3_2"]
+      },
+      "task4_2": {
+        "id": "organization-repository-implementation",
+        "title": "OrganizationRepository Implementation with Tests",
+        "effort": "medium",
+        "hours": 4,
+        "deliverables": [
+          "OrganizationRepository interface and implementation", 
+          "CRUD operations matching UserRepository pattern",
+          "Integration tests with collision prevention",
+          "Consistent error handling approach"
+        ],
+        "acceptance_criteria": [
+          "Follows same patterns as UserRepository",
+          "Account name collision detection works",
+          "getByOrgName method aliases get() properly",
+          "Integration tests cover org-specific scenarios",
+          "Error handling consistent with UserRepository"
+        ],
+        "dependencies": ["task2_2", "task3_1", "task3_2"]
+      },
+      "task4_3": {
+        "id": "repository-repository-implementation",
+        "title": "RepositoryRepository Implementation with Tests",
+        "effort": "large",
+        "hours": 5,
+        "deliverables": [
+          "RepositoryRepository interface and implementation",
+          "Extended CRUD with listByOwner functionality", 
+          "GSI3 queries for owner-based repository listing",
+          "Complex integration tests"
+        ],
+        "acceptance_criteria": [
+          "All CRUD operations work with composite keys",
+          "listByOwner uses GSI3 efficiently (recent repos first)",
+          "getByOwnerAndName properly handles composite lookup",
+          "Integration tests verify GSI query patterns", 
+          "Performance considerations for list operations",
+          "Proper pagination support in listByOwner"
+        ],
+        "dependencies": ["task2_3", "task3_1", "task3_2"]
+      }
+    },
+    "phase5": {
+      "task5_1": {
+        "id": "end-to-end-integration-tests",
+        "title": "End-to-End Integration Tests",
+        "effort": "medium",
+        "hours": 3,
+        "deliverables": [
+          "Cross-entity relationship tests",
+          "Full workflow scenarios (create user → create repo → list repos)",
+          "GSI query validation across entities",
+          "Performance and data consistency tests"
+        ],
+        "acceptance_criteria": [
+          "User/org can own repositories correctly", 
+          "Repository listings work across different owners",
+          "GSI3 queries return proper ordering",
+          "Account uniqueness enforced across users/orgs",
+          "Cleanup operations work properly"
+        ],
+        "dependencies": ["task4_1", "task4_2", "task4_3"]
+      },
+      "task5_2": {
+        "id": "test-data-management",
+        "title": "Test Data Management and Factories",
+        "effort": "small",
+        "hours": 2,
+        "deliverables": [
+          "Comprehensive TestDataFactory class",
+          "Database cleanup utilities", 
+          "Test isolation helpers",
+          "Performance test data generation"
+        ],
+        "acceptance_criteria": [
+          "Factory methods for all entity types",
+          "Configurable overrides for test scenarios",
+          "Automatic unique value generation",
+          "Database state isolation between tests",
+          "Bulk data generation for performance testing"
+        ],
+        "dependencies": ["task4_1", "task4_2", "task4_3"]
+      }
+    },
+    "phase6": {
+      "task6_1": {
+        "id": "implementation-documentation",
+        "title": "Implementation Documentation", 
+        "effort": "small",
+        "hours": 2,
+        "deliverables": [
+          "Updated README with usage examples",
+          "API documentation for repository classes",
+          "Development setup instructions with Docker",
+          "Performance characteristics documentation"
+        ],
+        "acceptance_criteria": [
+          "Clear usage examples for each repository",
+          "Docker setup instructions for new developers",
+          "Performance guidelines and limitations", 
+          "Troubleshooting common Docker/DynamoDB issues"
+        ],
+        "dependencies": ["task5_1", "task5_2"]
+      }
+    }
+  },
+  "summary": {
+    "total_estimated_hours": "32-40 hours",
+    "optimized_execution_time": "21 hours (with 3 parallel agents)",
+    "docker_requirements": {
+      "services": ["dynamodb-local"],
+      "benefits": [
+        "Consistent test environment across machines",
+        "No global npm package installation required", 
+        "Easy CI/CD integration",
+        "Isolated test database per container"
+      ]
+    }
+  },
+  "execution_strategy": {
+    "critical_path": ["task1_1", "task1_2", "task1_3"],
+    "parallel_opportunities": {
+      "utilities": ["task3_1", "task3_2"],
+      "entities": ["task2_1", "task2_2", "task2_3"], 
+      "repositories": ["task4_1", "task4_2", "task4_3"]
+    },
+    "sprints": {
+      "sprint1_foundation": {
+        "duration": "5 hours",
+        "tasks": ["task1_1", "task1_2", "task1_3", "task3_1", "task3_2"],
+        "agents": 3,
+        "focus": "Infrastructure and utilities"
+      },
+      "sprint2_entities": {
+        "duration": "4 hours", 
+        "tasks": ["task2_1", "task2_2", "task2_3"],
+        "agents": 3,
+        "focus": "DynamoDB-Toolbox entity records"
+      },
+      "sprint3_repositories": {
+        "duration": "5 hours",
+        "tasks": ["task4_1", "task4_2", "task4_3"], 
+        "agents": 3,
+        "focus": "Repository layer with integration tests"
+      },
+      "sprint4_integration": {
+        "duration": "7 hours",
+        "tasks": ["task5_1", "task5_2", "task6_1"],
+        "agents": 2,
+        "focus": "End-to-end testing and documentation"
+      }
+    },
+    "next_action": "/spec:implement core-entities task1_1"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "raw_user_story": "As a backend developer, I want to set up core DynamoDB entities (User, Organization, Repository) with proper table configuration so that I can build the foundation for the GitHub data model implementation",
+  "raw_criteria": [
+    "DynamoDB table is created with correct GSI configuration",
+    "User entity supports CRUD operations with ACCOUNT#<username> keys", 
+    "Organization entity supports CRUD operations with ACCOUNT#<orgname> keys",
+    "Repository entity supports CRUD operations with REPO#<owner>#<reponame> keys",
+    "All entities follow the single table design patterns from your ERD"
+  ],
+  "raw_rules": [
+    "Usernames and organization names must be unique",
+    "Repository names must be unique per owner", 
+    "All keys follow the composite key patterns from your ERD",
+    "GSI1, GSI2, GSI3 indexes properly configured for access patterns"
+  ],
+  "raw_scope": {
+    "included": [
+      "DynamoDB table setup with 4 GSIs (GSI1-GSI4)",
+      "User, Organization, Repository DynamoDB-Toolbox entities",
+      "Basic CRUD repository methods",
+      "Jest test setup with DynamoDB Local",
+      "Entity validation and key generation"
+    ],
+    "excluded": [
+      "Issue, PullRequest, Comment entities (Phase 2)",
+      "API endpoints (comes after entities)",
+      "Complex relationship queries",
+      "GitHub App entities"
+    ]
+  }
+}

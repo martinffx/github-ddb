@@ -1,0 +1,121 @@
+{
+  "feature": "core-entities",
+  "user_story": "As a backend developer, I want to set up core DynamoDB entities (User, Organization, Repository) with proper table configuration so that I can build the foundation for the GitHub data model implementation",
+  "acceptance_criteria": [
+    "AC-1: GIVEN a new project setup, WHEN I configure the DynamoDB table, THEN it includes the main table with GSI1, GSI2, GSI3, and GSI4 indexes properly configured",
+    "AC-2: GIVEN User entity requirements, WHEN I create a User record, THEN it uses ACCOUNT#<username> as PK/SK and supports CRUD operations via repository methods",
+    "AC-3: GIVEN Organization entity requirements, WHEN I create an Organization record, THEN it uses ACCOUNT#<orgname> as PK/SK and supports CRUD operations via repository methods",
+    "AC-4: GIVEN Repository entity requirements, WHEN I create a Repository record, THEN it uses REPO#<owner>#<reponame> as PK/SK and supports CRUD operations via repository methods",
+    "AC-5: GIVEN any core entity, WHEN I perform operations, THEN all entities follow single table design patterns with proper key generation and validation"
+  ],
+  "business_rules": [
+    "BR-1: Usernames and organization names must be unique globally (enforced by ACCOUNT# prefix collision detection)",
+    "BR-2: Repository names must be unique per owner (enforced by REPO#<owner>#<reponame> composite key)",
+    "BR-3: All primary and sort keys must follow the composite key patterns defined in the ERD",
+    "BR-4: GSI indexes must be properly configured to support the defined access patterns for account and repository queries",
+    "BR-5: GSI attributes are only populated for entities that use those specific indexes (sparse GSI pattern)"
+  ],
+  "scope": {
+    "included": [
+      "DynamoDB table configuration with main table and 4 GSI indexes",
+      "User DynamoDB-Toolbox record definition with ACCOUNT# keys",
+      "Organization DynamoDB-Toolbox record definition with ACCOUNT# keys", 
+      "Repository DynamoDB-Toolbox record definition with REPO# keys",
+      "UserRepository class with CRUD operations (create, get, update, delete)",
+      "OrganizationRepository class with CRUD operations",
+      "RepositoryRepository class with CRUD operations",
+      "Key generation utilities for composite keys",
+      "Entity validation and transformation methods",
+      "Jest test setup with DynamoDB Local",
+      "Test data factories for core entities"
+    ],
+    "excluded": [
+      "Issue, PullRequest, Comment entities (Phase 2)",
+      "Reaction system and relationship management",
+      "GitHub App entities and installations",
+      "API endpoints and route handlers",
+      "Service layer business logic",
+      "Complex relationship queries and GSI4 issue patterns"
+    ]
+  },
+  "aligns_with": "product_vision",
+  "dependencies": [],
+  "technical_details": {
+    "table_design": {
+      "main_table": "GitHubTable",
+      "partition_key": "PK",
+      "sort_key": "SK", 
+      "gsi1": {
+        "name": "GSI1",
+        "partition_key": "GSI1PK",
+        "sort_key": "GSI1SK",
+        "purpose": "Account queries, PR lists by repo"
+      },
+      "gsi2": {
+        "name": "GSI2", 
+        "partition_key": "GSI2PK",
+        "sort_key": "GSI2SK",
+        "purpose": "Repo lookup, fork relationships"
+      },
+      "gsi3": {
+        "name": "GSI3",
+        "partition_key": "GSI3PK", 
+        "sort_key": "GSI3SK",
+        "purpose": "Recent repos by account, user/org lookup"
+      },
+      "gsi4": {
+        "name": "GSI4",
+        "partition_key": "GSI4PK",
+        "sort_key": "GSI4SK", 
+        "purpose": "Repo metadata, issue status queries"
+      }
+    },
+    "entity_keys": {
+      "user": {
+        "pk": "ACCOUNT#<username>",
+        "sk": "ACCOUNT#<username>",
+        "gsi1pk": "ACCOUNT#<username>",
+        "gsi1sk": "ACCOUNT#<username>",
+        "gsi3pk": "ACCOUNT#<username>",
+        "gsi3sk": "ACCOUNT#<username>"
+      },
+      "organization": {
+        "pk": "ACCOUNT#<orgname>", 
+        "sk": "ACCOUNT#<orgname>",
+        "gsi1pk": "ACCOUNT#<orgname>",
+        "gsi1sk": "ACCOUNT#<orgname>",
+        "gsi3pk": "ACCOUNT#<orgname>",
+        "gsi3sk": "ACCOUNT#<orgname>"
+      },
+      "repository": {
+        "pk": "REPO#<owner>#<reponame>",
+        "sk": "REPO#<owner>#<reponame>", 
+        "gsi1pk": "REPO#<owner>#<reponame>",
+        "gsi1sk": "REPO#<owner>#<reponame>",
+        "gsi2pk": "REPO#<owner>#<reponame>",
+        "gsi2sk": "REPO#<owner>#<reponame>",
+        "gsi3pk": "ACCOUNT#<owner>",
+        "gsi3sk": "#<updated_at>"
+      }
+    },
+    "entity_attributes": {
+      "user": ["username", "email", "bio", "payment_plan_id", "created_at", "updated_at"],
+      "organization": ["org_name", "description", "payment_plan_id", "created_at", "updated_at"],
+      "repository": ["owner", "repo_name", "description", "is_private", "language", "created_at", "updated_at"]
+    },
+    "transformation_methods": [
+      "fromRequest() - Convert API input to entity format",
+      "toRecord() - Convert to DynamoDB record format",
+      "toResponse() - Convert to API output format", 
+      "validate() - Input validation and business rules"
+    ],
+    "implementation_sequence": [
+      "1. DynamoDB table and GSI configuration",
+      "2. DynamoDB-Toolbox schema definitions", 
+      "3. Key generation and validation utilities",
+      "4. Core entity record definitions (User, Organization, Repository)",
+      "5. Repository classes with CRUD operations",
+      "6. Test setup with DynamoDB Local and data factories"
+    ]
+  }
+}

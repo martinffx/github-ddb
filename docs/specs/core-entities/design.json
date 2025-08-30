@@ -1,0 +1,246 @@
+{
+  "requirements": {
+    "entities": {
+      "user": {
+        "attributes": ["username", "email", "bio", "payment_plan_id", "created_at", "updated_at"],
+        "key_pattern": "ACCOUNT#<username>",
+        "indexes": ["GSI1", "GSI3"]
+      },
+      "organization": {
+        "attributes": ["org_name", "description", "payment_plan_id", "created_at", "updated_at"],
+        "key_pattern": "ACCOUNT#<orgname>", 
+        "indexes": ["GSI1", "GSI3"]
+      },
+      "repository": {
+        "attributes": ["owner", "repo_name", "description", "is_private", "language", "created_at", "updated_at"],
+        "key_pattern": "REPO#<owner>#<reponame>",
+        "indexes": ["GSI1", "GSI2", "GSI3"]
+      }
+    },
+    "data_persistence": {
+      "database": "DynamoDB",
+      "design": "single_table",
+      "table_name": "GitHubTable",
+      "partition_key": "PK",
+      "sort_key": "SK",
+      "gsis": {
+        "GSI1": "Account queries, repo queries",
+        "GSI2": "Repo lookup, fork relationships",
+        "GSI3": "Recent repos by account, user/org lookup", 
+        "GSI4": "Repo metadata, issue status queries"
+      }
+    },
+    "api_needed": false,
+    "components": {
+      "records": ["UserRecord", "OrganizationRecord", "RepositoryRecord"],
+      "repositories": ["UserRepository", "OrganizationRepository", "RepositoryRepository"],
+      "utilities": ["KeyGenerator", "Validator"],
+      "tests": ["DynamoDBLocal", "DataFactories"]
+    },
+    "business_rules": {
+      "unique_usernames": "ACCOUNT# prefix collision detection",
+      "unique_orgnames": "ACCOUNT# prefix collision detection", 
+      "unique_repo_per_owner": "REPO#<owner>#<reponame> composite key",
+      "key_pattern_compliance": "All keys follow ERD composite patterns",
+      "sparse_gsi": "Only populate GSI attributes when entity uses index"
+    }
+  },
+  "technical_needs": {
+    "domain_model": {
+      "entities": {
+        "user": {
+          "record_class": "UserRecord",
+          "attributes": ["username", "email", "bio", "payment_plan_id", "created_at", "updated_at"],
+          "key_generation": "ACCOUNT#<username>",
+          "transformations": ["fromRequest", "toRecord", "toResponse", "validate"]
+        },
+        "organization": {
+          "record_class": "OrganizationRecord",
+          "attributes": ["org_name", "description", "payment_plan_id", "created_at", "updated_at"],
+          "key_generation": "ACCOUNT#<orgname>", 
+          "transformations": ["fromRequest", "toRecord", "toResponse", "validate"]
+        },
+        "repository": {
+          "record_class": "RepositoryRecord",
+          "attributes": ["owner", "repo_name", "description", "is_private", "language", "created_at", "updated_at"],
+          "key_generation": "REPO#<owner>#<reponame>",
+          "transformations": ["fromRequest", "toRecord", "toResponse", "validate"]
+        }
+      },
+      "repositories": {
+        "user_repository": {
+          "class_name": "UserRepository",
+          "operations": ["create", "get", "update", "delete", "getByUsername"],
+          "entity": "UserRecord"
+        },
+        "organization_repository": {
+          "class_name": "OrganizationRepository", 
+          "operations": ["create", "get", "update", "delete", "getByOrgName"],
+          "entity": "OrganizationRecord"
+        },
+        "repository_repository": {
+          "class_name": "RepositoryRepository",
+          "operations": ["create", "get", "update", "delete", "getByOwnerAndName", "listByOwner"],
+          "entity": "RepositoryRecord"
+        }
+      }
+    },
+    "persistence": {
+      "database": "DynamoDB",
+      "table_config": {
+        "table_name": "GitHubTable",
+        "partition_key": "PK",
+        "sort_key": "SK",
+        "billing_mode": "PAY_PER_REQUEST",
+        "gsi_config": {
+          "GSI1": {"pk": "GSI1PK", "sk": "GSI1SK", "projection": "ALL"},
+          "GSI2": {"pk": "GSI2PK", "sk": "GSI2SK", "projection": "ALL"},
+          "GSI3": {"pk": "GSI3PK", "sk": "GSI3SK", "projection": "ALL"},
+          "GSI4": {"pk": "GSI4PK", "sk": "GSI4SK", "projection": "ALL"}
+        }
+      },
+      "access_patterns": {
+        "account_lookup": "PK query with ACCOUNT#<name>",
+        "repo_lookup": "PK query with REPO#<owner>#<name>", 
+        "repos_by_owner": "GSI3 query with ACCOUNT#<owner>",
+        "recent_repos": "GSI3 query with sort on timestamp"
+      }
+    },
+    "router": null,
+    "events": null,
+    "dependencies": {
+      "required_packages": ["dynamodb-toolbox", "@aws-sdk/client-dynamodb", "@aws-sdk/lib-dynamodb"],
+      "dev_dependencies": ["dynamodb-local", "@types/jest"],
+      "existing_features": [],
+      "blocks_features": ["issues", "pull-requests", "comments"]
+    }
+  },
+  "design": {
+    "domain_model": {
+      "entities": {
+        "user": {
+          "schema": {
+            "PK": {"type": "string", "key": true, "partitionKey": true},
+            "SK": {"type": "string", "key": true, "sortKey": true},
+            "GSI1PK": {"type": "string", "key": true},
+            "GSI1SK": {"type": "string", "key": true},
+            "GSI3PK": {"type": "string", "key": true},
+            "GSI3SK": {"type": "string", "key": true},
+            "username": {"type": "string", "required": true},
+            "email": {"type": "string", "required": true},
+            "bio": {"type": "string", "required": false},
+            "payment_plan_id": {"type": "string", "required": false},
+            "created_at": {"type": "string", "required": true, "default": "NOW"},
+            "updated_at": {"type": "string", "required": true, "default": "NOW"}
+          },
+          "key_generation": {
+            "PK": "ACCOUNT#{username}",
+            "SK": "ACCOUNT#{username}",
+            "GSI1PK": "ACCOUNT#{username}",
+            "GSI1SK": "ACCOUNT#{username}",
+            "GSI3PK": "ACCOUNT#{username}",
+            "GSI3SK": "ACCOUNT#{username}"
+          }
+        },
+        "organization": {
+          "schema": {
+            "PK": {"type": "string", "key": true, "partitionKey": true},
+            "SK": {"type": "string", "key": true, "sortKey": true},
+            "GSI1PK": {"type": "string", "key": true},
+            "GSI1SK": {"type": "string", "key": true},
+            "GSI3PK": {"type": "string", "key": true},
+            "GSI3SK": {"type": "string", "key": true},
+            "org_name": {"type": "string", "required": true},
+            "description": {"type": "string", "required": false},
+            "payment_plan_id": {"type": "string", "required": false},
+            "created_at": {"type": "string", "required": true, "default": "NOW"},
+            "updated_at": {"type": "string", "required": true, "default": "NOW"}
+          },
+          "key_generation": {
+            "PK": "ACCOUNT#{org_name}",
+            "SK": "ACCOUNT#{org_name}",
+            "GSI1PK": "ACCOUNT#{org_name}",
+            "GSI1SK": "ACCOUNT#{org_name}",
+            "GSI3PK": "ACCOUNT#{org_name}",
+            "GSI3SK": "ACCOUNT#{org_name}"
+          }
+        },
+        "repository": {
+          "schema": {
+            "PK": {"type": "string", "key": true, "partitionKey": true},
+            "SK": {"type": "string", "key": true, "sortKey": true},
+            "GSI1PK": {"type": "string", "key": true},
+            "GSI1SK": {"type": "string", "key": true},
+            "GSI2PK": {"type": "string", "key": true},
+            "GSI2SK": {"type": "string", "key": true},
+            "GSI3PK": {"type": "string", "key": true},
+            "GSI3SK": {"type": "string", "key": true},
+            "owner": {"type": "string", "required": true},
+            "repo_name": {"type": "string", "required": true},
+            "description": {"type": "string", "required": false},
+            "is_private": {"type": "boolean", "required": true, "default": false},
+            "language": {"type": "string", "required": false},
+            "created_at": {"type": "string", "required": true, "default": "NOW"},
+            "updated_at": {"type": "string", "required": true, "default": "NOW"}
+          },
+          "key_generation": {
+            "PK": "REPO#{owner}#{repo_name}",
+            "SK": "REPO#{owner}#{repo_name}",
+            "GSI1PK": "REPO#{owner}#{repo_name}",
+            "GSI1SK": "REPO#{owner}#{repo_name}",
+            "GSI2PK": "REPO#{owner}#{repo_name}",
+            "GSI2SK": "REPO#{owner}#{repo_name}",
+            "GSI3PK": "ACCOUNT#{owner}",
+            "GSI3SK": "#{updated_at}"
+          }
+        }
+      },
+      "services": null
+    },
+    "database": {
+      "table_name": "GitHubTable",
+      "partition_key": "PK",
+      "sort_key": "SK",
+      "billing_mode": "PAY_PER_REQUEST",
+      "gsi": {
+        "GSI1": {
+          "partition_key": "GSI1PK",
+          "sort_key": "GSI1SK",
+          "projection_type": "ALL"
+        },
+        "GSI2": {
+          "partition_key": "GSI2PK",
+          "sort_key": "GSI2SK",
+          "projection_type": "ALL"
+        },
+        "GSI3": {
+          "partition_key": "GSI3PK",
+          "sort_key": "GSI3SK",
+          "projection_type": "ALL"
+        }
+      },
+      "access_patterns": {
+        "get_account": "Query PK with ACCOUNT#{name}",
+        "get_repository": "Query PK with REPO#{owner}#{name}",
+        "list_repos_by_owner": "Query GSI3PK with ACCOUNT#{owner}",
+        "get_recent_repos_by_owner": "Query GSI3 with ACCOUNT#{owner} sort by updated_at",
+        "list_all_accounts": "Scan with filter on PK begins_with ACCOUNT#",
+        "get_repo_direct": "GetItem with REPO#{owner}#{name}"
+      }
+    },
+    "endpoints": null,
+    "events": null,
+    "dependencies": {
+      "production": {
+        "dynamodb-toolbox": "^1.0.0",
+        "@aws-sdk/client-dynamodb": "^3.0.0",
+        "@aws-sdk/lib-dynamodb": "^3.0.0"
+      },
+      "development": {
+        "dynamodb-local": "^2.0.0",
+        "@types/jest": "^29.0.0",
+        "@types/node": "^20.0.0"
+      }
+    }
+  }
+}

@@ -1,0 +1,139 @@
+{
+  "feature": "content-entities",
+  "user_story": "As a backend developer, I want to implement Issue, PullRequest, Comment, and Reaction entities with relationship management so that I can build the content layer of the GitHub data model on top of the core entities foundation",
+  "acceptance_criteria": [
+    "AC-1: GIVEN a repository exists, WHEN I create an Issue, THEN it uses REPO#<owner>#<reponame> as PK and ISSUE#<zero_padded_number> as SK with sequential numbering",
+    "AC-2: GIVEN a repository exists, WHEN I create a PullRequest, THEN it uses PR#<owner>#<reponame>#<zero_padded_number> as PK/SK and appears in GSI1 for repository PR listing",
+    "AC-3: GIVEN an Issue or PR exists, WHEN I add Comments, THEN they use item collections under ISSUECOMMENT# or PRCOMMENT# keys with proper parent relationships",
+    "AC-4: GIVEN any Issue, PR, or Comment exists, WHEN users add Reactions, THEN they use polymorphic composite keys allowing multiple reaction types per user per target",
+    "AC-5: GIVEN repositories exist, WHEN managing Forks and Stars, THEN they use adjacency list patterns with GSI2 for fork relationships and many-to-many for star relationships"
+  ],
+  "business_rules": [
+    "BR-1: Issue numbers must be sequential and unique per repository, generated automatically starting from 1",
+    "BR-2: PR numbers must be sequential and unique per repository, sharing the same sequence as issues",
+    "BR-3: Comments must reference valid parent Issues or PRs and cannot be orphaned",
+    "BR-4: Reactions must reference valid targets (Issue/PR/Comment) and valid users, with one reaction type per user per target",
+    "BR-5: Fork relationships require both source and target repositories to exist, stored using adjacency list pattern",
+    "BR-6: Star relationships are many-to-many between users and repositories with timestamp tracking",
+    "BR-7: GSI4 must be populated for Issues to enable status-based queries (open vs closed)"
+  ],
+  "scope": {
+    "included": [
+      "Issue DynamoDB-Toolbox entity with sequential numbering and GSI4 status queries",
+      "PullRequest DynamoDB-Toolbox entity with composite keys and GSI1 repository listing",
+      "IssueComment entity with item collection pattern under Issues",
+      "PRComment entity with item collection pattern under PullRequests",
+      "Reaction entity with polymorphic targeting supporting Issues, PRs, and Comments",
+      "Fork relationship entity using adjacency list pattern with GSI2",
+      "Star relationship entity using many-to-many pattern",
+      "Repository classes for all content entities with specialized query methods",
+      "Sequential number generation utilities for Issues and PRs",
+      "GSI4 implementation for issue status queries",
+      "Integration with existing core entities (User, Repository)"
+    ],
+    "excluded": [
+      "REST API endpoints and route handlers",
+      "Service layer business logic and validation",
+      "Advanced PR features (reviews, approvals, merge conflicts)",
+      "Issue and PR templates, labels, and automation",
+      "Notification system for content changes",
+      "Search and full-text indexing capabilities",
+      "Real-time updates and websocket integration"
+    ]
+  },
+  "aligns_with": "product_vision",
+  "dependencies": ["core-entities"],
+  "technical_details": {
+    "entity_key_patterns": {
+      "issue": {
+        "pk": "REPO#<owner>#<reponame>",
+        "sk": "ISSUE#<zero_padded_number>",
+        "gsi4pk": "REPO#<owner>#<reponame>",
+        "gsi4sk_open": "ISSUE#OPEN#<999999_minus_number>",
+        "gsi4sk_closed": "#ISSUE#CLOSED#<zero_padded_number>",
+        "attributes": ["issue_number", "title", "body", "status", "author", "assignees", "created_at", "updated_at"]
+      },
+      "pull_request": {
+        "pk": "PR#<owner>#<reponame>#<zero_padded_number>",
+        "sk": "PR#<owner>#<reponame>#<zero_padded_number>",
+        "gsi1pk": "PR#<owner>#<reponame>",
+        "gsi1sk": "PR#<zero_padded_number>",
+        "attributes": ["pr_number", "title", "body", "status", "author", "source_branch", "target_branch", "created_at", "updated_at"]
+      },
+      "issue_comment": {
+        "pk": "ISSUECOMMENT#<owner>#<reponame>#<issue_number>",
+        "sk": "ISSUECOMMENT#<comment_id>",
+        "attributes": ["comment_id", "issue_number", "content", "author", "created_at", "updated_at"]
+      },
+      "pr_comment": {
+        "pk": "PRCOMMENT#<owner>#<reponame>#<pr_number>",
+        "sk": "PRCOMMENT#<comment_id>",
+        "attributes": ["comment_id", "pr_number", "content", "author", "created_at", "updated_at"]
+      },
+      "reaction": {
+        "pk": "<target_type>REACTION#<owner>#<reponame>#<target_id>#<username>",
+        "sk": "<target_type>REACTION#<owner>#<reponame>#<target_id>#<username>",
+        "attributes": ["target_type", "target_id", "reaction_type", "username", "created_at"]
+      },
+      "fork": {
+        "pk": "REPO#<original_owner>#<original_repo>",
+        "sk": "FORK#<fork_owner>",
+        "gsi2pk": "REPO#<original_owner>#<original_repo>",
+        "gsi2sk": "FORK#<fork_owner>",
+        "attributes": ["original_owner", "original_repo", "fork_owner", "fork_repo", "created_at"]
+      },
+      "star": {
+        "pk": "ACCOUNT#<username>",
+        "sk": "STAR#<owner>#<reponame>",
+        "attributes": ["username", "repo_owner", "repo_name", "created_at"]
+      }
+    },
+    "sequential_numbering": {
+      "strategy": "Atomic counter using DynamoDB conditional writes",
+      "implementation": "Separate counter item per repository for issues/PRs",
+      "key_pattern": "COUNTER#<owner>#<reponame>",
+      "zero_padding": "6 digits (000001, 000002, etc.)"
+    },
+    "gsi_usage": {
+      "gsi1": {
+        "purpose": "List PRs by repository",
+        "query_pattern": "GSI1PK=PR#<owner>#<repo>, sort by GSI1SK=PR#<number>"
+      },
+      "gsi2": {
+        "purpose": "Find forks of a repository",
+        "query_pattern": "GSI2PK=REPO#<owner>#<repo>, filter GSI2SK begins_with FORK#"
+      },
+      "gsi4": {
+        "purpose": "Issue status queries",
+        "open_issues": "GSI4PK=REPO#<owner>#<repo>, GSI4SK begins_with ISSUE#OPEN#",
+        "closed_issues": "GSI4PK=REPO#<owner>#<repo>, GSI4SK begins_with #ISSUE#CLOSED#"
+      }
+    },
+    "repository_operations": {
+      "issue_repository": ["create", "get", "update", "delete", "listByRepo", "listOpenByRepo", "listClosedByRepo"],
+      "pull_request_repository": ["create", "get", "update", "delete", "listByRepo", "getByNumber"],
+      "comment_repositories": ["create", "get", "update", "delete", "listByParent"],
+      "reaction_repository": ["create", "delete", "listByTarget", "getByUserAndTarget"],
+      "fork_repository": ["create", "delete", "listForksOfRepo", "getFork"],
+      "star_repository": ["create", "delete", "listStarsByUser", "listStargazersByRepo", "isStarred"]
+    },
+    "transformation_methods": [
+      "fromRequest() - Convert API input to entity format with validation",
+      "toRecord() - Convert to DynamoDB record format with key generation",
+      "toResponse() - Convert to API output format with computed fields",
+      "validate() - Input validation and business rules enforcement"
+    ],
+    "implementation_sequence": [
+      "1. Sequential numbering utility for issues and PRs",
+      "2. Issue entity with GSI4 status query support",
+      "3. PullRequest entity with GSI1 repository listing",
+      "4. IssueComment and PRComment entities with item collections",
+      "5. Reaction entity with polymorphic targeting",
+      "6. Fork entity with adjacency list pattern and GSI2",
+      "7. Star entity with many-to-many relationship pattern",
+      "8. Repository classes for all content entities",
+      "9. Integration tests with core entities",
+      "10. End-to-end workflow testing"
+    ]
+  }
+}

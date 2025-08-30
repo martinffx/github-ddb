@@ -1,0 +1,78 @@
+{
+  "product_vision": "GitHub DynamoDB Implementation - Complete GitHub data model using DynamoDB single table design patterns with DynamoDB-Toolbox for type-safe schema definitions and queries",
+  "existing_features": ["core-entities"],
+  "architecture": {
+    "pattern": "API Layer (Fastify) → Service Layer (Business Logic) → Repository Layer (Data Access) → DynamoDB",
+    "table_design": {
+      "table_name": "GitHubTable",
+      "partition_key": "PK",
+      "sort_key": "SK",
+      "gsi_usage": {
+        "GSI1": "PR lists by repo",
+        "GSI2": "Fork relationships", 
+        "GSI3": "Not used by content entities",
+        "GSI4": "Issue status queries, repo metadata"
+      }
+    },
+    "entity_patterns": {
+      "transformation": ["fromRequest", "toRecord", "toResponse", "validate"],
+      "repository_crud": ["create", "get", "update", "delete", "list"],
+      "key_generation": "Composite keys with zero-padding for lexicographic sort"
+    }
+  },
+  "content_entity_keys": {
+    "issue": {
+      "pk": "REPO#<owner>#<reponame>",
+      "sk": "ISSUE#<zero_padded_number>",
+      "gsi4pk": "REPO#<owner>#<reponame>",
+      "gsi4sk": "ISSUE#OPEN#<diff> or #ISSUE#CLOSED#<number>"
+    },
+    "pull_request": {
+      "pk": "PR#<owner>#<reponame>#<zero_padded_number>",
+      "sk": "PR#<owner>#<reponame>#<zero_padded_number>",
+      "gsi1pk": "PR#<owner>#<reponame>",
+      "gsi1sk": "PR#<zero_padded_number>"
+    },
+    "issue_comment": {
+      "pk": "ISSUECOMMENT#<owner>#<reponame>#<issue_number>",
+      "sk": "ISSUECOMMENT#<comment_id>"
+    },
+    "pr_comment": {
+      "pk": "PRCOMMENT#<owner>#<reponame>#<pr_number>", 
+      "sk": "PRCOMMENT#<comment_id>"
+    },
+    "reaction": {
+      "pk": "<target_type>REACTION#<owner>#<reponame>#<target_id>#<username>",
+      "sk": "<target_type>REACTION#<owner>#<reponame>#<target_id>#<username>"
+    }
+  },
+  "dependencies": {
+    "required_foundation": [
+      "User entity (ACCOUNT#<username>)",
+      "Repository entity (REPO#<owner>#<reponame>)",
+      "KeyGenerator utility",
+      "DynamoDB table with GSI4 configured"
+    ],
+    "blocking_status": "core-entities must be implemented first",
+    "shared_utilities": ["KeyGenerator", "error handling", "test factories"]
+  },
+  "gsi4_requirements": {
+    "issue_status_queries": {
+      "open_issues": "Sort by newest first using GSI4SK=ISSUE#OPEN#<diff>",
+      "closed_issues": "Sort by oldest first using GSI4SK=#ISSUE#CLOSED#<number>",
+      "zero_padding": "Issue numbers padded for proper lexicographic ordering"
+    },
+    "access_patterns": [
+      "List open issues by repository", 
+      "List closed issues by repository",
+      "Repository metadata queries"
+    ]
+  },
+  "relationship_patterns": {
+    "fork": "GSI2 adjacency list - REPO#<original> → FORK#<owner>",
+    "star": "Many-to-many via separate star items",
+    "issue_comments": "Item collection under issue partition",
+    "pr_comments": "Item collection under PR partition", 
+    "reactions": "Polymorphic targeting with composite keys"
+  }
+}
