@@ -14,15 +14,18 @@ importers:
       '@aws-sdk/lib-dynamodb':
         specifier: 3.658.1
         version: 3.658.1(@aws-sdk/client-dynamodb@3.658.1)
+      base62:
+        specifier: ^2.0.2
+        version: 2.0.2
       dynamodb-toolbox:
         specifier: 2.7.1
         version: 2.7.1(@aws-sdk/client-dynamodb@3.658.1)(@aws-sdk/lib-dynamodb@3.658.1(@aws-sdk/client-dynamodb@3.658.1))
       fastify:
         specifier: ^5.5.0
         version: 5.5.0
-      tsx:
-        specifier: ^4.20.4
-        version: 4.20.4
+      luxon:
+        specifier: ^3.7.2
+        version: 3.7.2
       typebox:
         specifier: ^0.0.1
         version: 0.0.1
@@ -36,6 +39,9 @@ importers:
       '@types/jest':
         specifier: ^29.5.14
         version: 29.5.14
+      '@types/luxon':
+        specifier: ^3.7.1
+        version: 3.7.1
       '@types/node':
         specifier: ^22.7.5
         version: 22.18.0
@@ -45,6 +51,9 @@ importers:
       ts-jest:
         specifier: ^29.2.5
         version: 29.4.1(@babel/core@7.28.3)(@jest/transform@30.0.5)(@jest/types@30.0.5)(babel-jest@30.0.5(@babel/core@7.28.3))(jest-util@30.0.5)(jest@30.0.5(@types/node@22.18.0))(typescript@5.9.2)
+      tsx:
+        specifier: ^4.20.4
+        version: 4.20.4
 
 packages:
 
@@ -930,6 +939,9 @@ packages:
   '@types/jest@29.5.14':
     resolution: {integrity: sha512-ZN+4sdnLUbo8EVvVc2ao0GFW6oVrQRPn4K2lglySj7APvSrgzxHiNNK99us4WDMi57xxA2yggblIAMNhXOotLQ==}
 
+  '@types/luxon@3.7.1':
+    resolution: {integrity: sha512-H3iskjFIAn5SlJU7OuxUmTEpebK6TKB8rxZShDslBMZJ5u9S//KM1sbdAisiSrqwLQncVjnpi2OK2J51h+4lsg==}
+
   '@types/node@22.18.0':
     resolution: {integrity: sha512-m5ObIqwsUp6BZzyiy4RdZpzWGub9bqLJMvZDD0QMXhxjqMHMENlj+SqF5QxoUwaQNFe+8kz8XM8ZQhqkQPTgMQ==}
 
@@ -1119,6 +1131,10 @@ packages:
 
   balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
+
+  base62@2.0.2:
+    resolution: {integrity: sha512-FLoAQzMpmdDBei0u7fUAQzVCxoH6g4pueCIuGDoCZVZCiCeW4qTKpEGB79jkS15VB8b/5EIHc4R+WSKTByM+dw==}
+    engines: {node: '>=6.0.0'}
 
   bowser@2.12.1:
     resolution: {integrity: sha512-z4rE2Gxh7tvshQ4hluIT7XcFrgLIQaw9X3A+kTTRdovCz5PMukm/0QC/BKSYPj3omF5Qfypn9O/c5kgpmvYUCw==}
@@ -1676,6 +1692,10 @@ packages:
 
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
+
+  luxon@3.7.2:
+    resolution: {integrity: sha512-vtEhXh/gNjI9Yg1u4jX/0YVPMvxzHuGgCm6tC5kZyb08yjGWGnqAjGJvcXbqQR2P3MyMEFnRbpcdFS6PBcLqew==}
+    engines: {node: '>=12'}
 
   make-dir@4.0.0:
     resolution: {integrity: sha512-hXdUTZYIVOt1Ex//jAQi+wTZZpUpwBj/0QsOzqegb3rGMMeJiSEu5xLHnYfBrRV4RH2+OCSOO95Is/7x1WJ4bw==}
@@ -3467,6 +3487,8 @@ snapshots:
       expect: 29.7.0
       pretty-format: 29.7.0
 
+  '@types/luxon@3.7.1': {}
+
   '@types/node@22.18.0':
     dependencies:
       undici-types: 6.21.0
@@ -3640,6 +3662,8 @@ snapshots:
       babel-preset-current-node-syntax: 1.2.0(@babel/core@7.28.3)
 
   balanced-match@1.0.2: {}
+
+  base62@2.0.2: {}
 
   bowser@2.12.1: {}
 
@@ -4402,6 +4426,8 @@ snapshots:
   lru-cache@5.1.1:
     dependencies:
       yallist: 3.1.1
+
+  luxon@3.7.2: {}
 
   make-dir@4.0.0:
     dependencies:

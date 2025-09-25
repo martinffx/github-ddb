@@ -1,37 +1,40 @@
 {
-  "name": "gh-ddb",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsx --watch src/index.ts",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "format": "biome format --write",
-    "lint": "biome lint --write",
-    "types": "tsc --noEmit",
-    "docker": "docker-compose up -d"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "packageManager": "pnpm@10.15.0",
-  "dependencies": {
-    "@aws-sdk/client-dynamodb": "3.658.1",
-    "@aws-sdk/lib-dynamodb": "3.658.1",
-    "dynamodb-toolbox": "2.7.1",
-    "fastify": "^5.5.0",
-    "typebox": "^0.0.1",
-    "typescript": "^5.9.2"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.2.0",
-    "@types/jest": "^29.5.14",
-    "@types/node": "^22.7.5",
-    "tsx": "^4.20.4",
-    "jest": "^30.0.5",
-    "ts-jest": "^29.2.5"
-  }
+	"name": "gh-ddb",
+	"version": "1.0.0",
+	"description": "",
+	"main": "index.js",
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsx --watch src/index.ts",
+		"test": "jest",
+		"test:watch": "jest --watch",
+		"test:coverage": "jest --coverage",
+		"format": "biome format --write",
+		"lint": "biome lint --write",
+		"types": "tsc --noEmit",
+		"docker": "docker-compose up -d"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"packageManager": "pnpm@10.15.1",
+	"dependencies": {
+		"@aws-sdk/client-dynamodb": "3.658.1",
+		"@aws-sdk/lib-dynamodb": "3.658.1",
+		"base62": "^2.0.2",
+		"dynamodb-toolbox": "2.7.1",
+		"fastify": "^5.5.0",
+		"luxon": "^3.7.2",
+		"typebox": "^0.0.1",
+		"typescript": "^5.9.2"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.2.0",
+		"@types/jest": "^29.5.14",
+		"@types/luxon": "^3.7.1",
+		"@types/node": "^22.7.5",
+		"jest": "^30.0.5",
+		"ts-jest": "^29.2.5",
+		"tsx": "^4.20.4"
+	}
 }

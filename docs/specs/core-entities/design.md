@@ -1,691 +1,311 @@
-# Core Entities Design Specification
+# Core Entities Design Document
 
-## Feature Overview
+## Overview
 
-The core-entities feature provides the foundational data layer for a GitHub-like application using DynamoDB as the primary data store. This feature implements three core entity types (User, Organization, Repository) with a single-table design pattern, enabling efficient querying and scalable data access patterns.
+This document outlines the architecture and implementation status for the three core entities in the GitHub DynamoDB project: **User**, **Organization**, and **Repository**. The system implements a layered architecture pattern with single-table DynamoDB design.
 
-**Purpose**: Establish the fundamental domain entities and data access layer that will serve as the foundation for all other features including issues, pull requests, and comments.
+### Current Status: 44% Complete
 
-## Architecture
+The foundation is solid with a working User domain that establishes proven patterns, but Organization and Repository domains have critical implementation gaps that block completion.
 
-### Component Relationships
+**Working Components:**
+- ✓ DynamoDB schema with single table design
+- ✓ UserEntity with complete transformation methods
+- ✓ UserRepository with full CRUD operations
+- ✓ Test infrastructure with DynamoDB Local
+- ✓ Comprehensive UserRepository tests
+- ✓ Type-safe entity definitions using dynamodb-toolbox
 
-```mermaid
-graph TD
-    A[Entity Classes] --> B[Repository Layer]
-    B --> C[DynamoDB Table]
-    C --> D[GSI Indexes]
-    
-    E[Key Generator] --> A
-    F[Validator] --> A
-    
-    A --> G[UserRecord]
-    A --> H[OrganizationRecord]
-    A --> I[RepositoryRecord]
-    
-    B --> J[UserRepository]
-    B --> K[OrganizationRepository]
-    B --> L[RepositoryRepository]
-```
+**Blocking Issues:**
+- ❌ OrganizationEntity missing updateOrganization method
+- ❌ RepositoryEntity completely missing implementation
+- ❌ OrganizationRepository listOrgs method uses incorrect QueryCommand.scan()
+- ❌ RepositoryRepository completely missing
+- ❌ GSI3SK timestamp generation bug in RepoRecord schema
+- ❌ No test coverage for Organization/Repository domains
 
-### Data Flow
+## Architecture Status
 
-1. **Request → Entity**: Input validation and transformation using entity `fromRequest()` methods
-2. **Entity → Record**: Data transformation using entity `toRecord()` methods for DynamoDB persistence
-3. **Repository → Database**: CRUD operations through DynamoDB-Toolbox
-4. **Database → Entity**: Record retrieval and transformation using entity constructors
-5. **Entity → Response**: Output formatting using entity `toResponse()` methods
+### Domain Implementation Matrix
 
-## Domain Model
+| Domain | Entity | Repository | Service | Routes | Tests | Status |
+|--------|--------|------------|---------|--------|-------|--------|
+| User | ✓ COMPLETE | ✓ COMPLETE | ✗ Empty | ✗ Empty | ✓ COMPLETE | **REFERENCE** |
+| Organization | ⚠ PARTIAL | ⚠ PARTIAL | ✗ Missing | ✗ Missing | ✗ Missing | **INCOMPLETE** |
+| Repository | ✗ Missing | ✗ Missing | ✗ Missing | ✗ Missing | ✗ Missing | **NOT STARTED** |
 
-### Entity Definitions with DynamoDB-Toolbox Schemas
+**User Domain (Reference Implementation):**
+- Status: COMPLETE - serves as the pattern other domains must follow
+- Entity: All transformation methods implemented (fromRequest, fromRecord, toRecord, toResponse, updateUser)
+- Repository: Full CRUD with pagination, error handling, conditional operations
+- Tests: Comprehensive coverage with all CRUD operations
 
-#### UserRecord Schema
+## Domain Models
 
-```typescript
-import { Entity } from 'dynamodb-toolbox'
+### Entity Transformation Pattern
 
-const UserRecord = new Entity({
-  name: 'User',
-  attributes: {
-    PK: { 
-      type: 'string', 
-      partitionKey: true,
-      default: ({ username }: { username: string }) => `ACCOUNT#${username}`
-    },
-    SK: { 
-      type: 'string', 
-      sortKey: true,
-      default: ({ username }: { username: string }) => `ACCOUNT#${username}`
-    },
-    GSI1PK: { 
-      type: 'string',
-      default: ({ username }: { username: string }) => `ACCOUNT#${username}`
-    },
-    GSI1SK: { 
-      type: 'string',
-      default: ({ username }: { username: string }) => `ACCOUNT#${username}`
-    },
-    GSI3PK: { 
-      type: 'string',
-      default: ({ username }: { username: string }) => `ACCOUNT#${username}`
-    },
-    GSI3SK: { 
-      type: 'string',
-      default: ({ username }: { username: string }) => `ACCOUNT#${username}`
-    },
-    username: { 
-      type: 'string', 
-      required: true,
-      validate: (value: string) => /^[a-zA-Z0-9_-]+$/.test(value)
-    },
-    email: { 
-      type: 'string', 
-      required: true,
-      validate: (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
-    },
-    bio: { type: 'string' },
-    payment_plan_id: { type: 'string' },
-    created_at: { 
-      type: 'string', 
-      required: true,
-      default: () => new Date().toISOString()
-    },
-    updated_at: { 
-      type: 'string', 
-      required: true,
-      default: () => new Date().toISOString()
-    }
-  }
-} as const)
-```
-
-#### OrganizationRecord Schema
+All entities follow the proven UserEntity transformation pattern:
 
 ```typescript
-const OrganizationRecord = new Entity({
-  name: 'Organization',
-  attributes: {
-    PK: { 
-      type: 'string', 
-      partitionKey: true,
-      default: ({ org_name }: { org_name: string }) => `ACCOUNT#${org_name}`
-    },
-    SK: { 
-      type: 'string', 
-      sortKey: true,
-      default: ({ org_name }: { org_name: string }) => `ACCOUNT#${org_name}`
-    },
-    GSI1PK: { 
-      type: 'string',
-      default: ({ org_name }: { org_name: string }) => `ACCOUNT#${org_name}`
-    },
-    GSI1SK: { 
-      type: 'string',
-      default: ({ org_name }: { org_name: string }) => `ACCOUNT#${org_name}`
-    },
-    GSI3PK: { 
-      type: 'string',
-      default: ({ org_name }: { org_name: string }) => `ACCOUNT#${org_name}`
-    },
-    GSI3SK: { 
-      type: 'string',
-      default: ({ org_name }: { org_name: string }) => `ACCOUNT#${org_name}`
-    },
-    org_name: { 
-      type: 'string', 
-      required: true,
-      validate: (value: string) => /^[a-zA-Z0-9_-]+$/.test(value)
-    },
-    description: { type: 'string' },
-    payment_plan_id: { type: 'string' },
-    created_at: { 
-      type: 'string', 
-      required: true,
-      default: () => new Date().toISOString()
-    },
-    updated_at: { 
-      type: 'string', 
-      required: true,
-      default: () => new Date().toISOString()
-    }
-  }
-} as const)
+class EntityName {
+  // Core transformation methods (required for all entities)
+  static fromRequest(request: EntityCreateRequest): Entity
+  static fromRecord(record: EntityFormatted): Entity
+  toRecord(): EntityInput
+  toResponse(): EntityResponse
+  updateEntity(updates: UpdateEntityOpts): Entity  // MISSING in Org/Repo
+}
 ```
 
-#### RepositoryRecord Schema
+### Data Models
 
+#### User Entity (COMPLETE)
 ```typescript
-const RepositoryRecord = new Entity({
-  name: 'Repository',
-  attributes: {
-    PK: { 
-      type: 'string', 
-      partitionKey: true,
-      default: ({ owner, repo_name }: { owner: string; repo_name: string }) => 
-        `REPO#${owner}#${repo_name}`
-    },
-    SK: { 
-      type: 'string', 
-      sortKey: true,
-      default: ({ owner, repo_name }: { owner: string; repo_name: string }) => 
-        `REPO#${owner}#${repo_name}`
-    },
-    GSI1PK: { 
-      type: 'string',
-      default: ({ owner, repo_name }: { owner: string; repo_name: string }) => 
-        `REPO#${owner}#${repo_name}`
-    },
-    GSI1SK: { 
-      type: 'string',
-      default: ({ owner, repo_name }: { owner: string; repo_name: string }) => 
-        `REPO#${owner}#${repo_name}`
-    },
-    GSI2PK: { 
-      type: 'string',
-      default: ({ owner, repo_name }: { owner: string; repo_name: string }) => 
-        `REPO#${owner}#${repo_name}`
-    },
-    GSI2SK: { 
-      type: 'string',
-      default: ({ owner, repo_name }: { owner: string; repo_name: string }) => 
-        `REPO#${owner}#${repo_name}`
-    },
-    GSI3PK: { 
-      type: 'string',
-      default: ({ owner }: { owner: string }) => `ACCOUNT#${owner}`
-    },
-    GSI3SK: { 
-      type: 'string',
-      default: ({ updated_at }: { updated_at: string }) => `#${updated_at}`
-    },
-    owner: { 
-      type: 'string', 
-      required: true,
-      validate: (value: string) => /^[a-zA-Z0-9_-]+$/.test(value)
-    },
-    repo_name: { 
-      type: 'string', 
-      required: true,
-      validate: (value: string) => /^[a-zA-Z0-9_.-]+$/.test(value)
-    },
-    description: { type: 'string' },
-    is_private: { 
-      type: 'boolean', 
-      required: true,
-      default: false
-    },
-    language: { type: 'string' },
-    created_at: { 
-      type: 'string', 
-      required: true,
-      default: () => new Date().toISOString()
-    },
-    updated_at: { 
-      type: 'string', 
-      required: true,
-      default: () => new Date().toISOString()
-    }
-  }
-} as const)
+interface UserEntity {
+  username: string
+  email: string
+  bio?: string
+  paymentPlanId?: string
+  created: DateTime
+  modified: DateTime
+}
 ```
 
-## Database Design
+**Key Pattern:** `ACCOUNT#{username}`
+**Status:** ✓ Complete reference implementation
 
-### Table Structure
+#### Organization Entity (PARTIAL)
+```typescript
+interface OrganizationEntity {
+  orgName: string
+  description?: string
+  paymentPlanId?: string
+  created: DateTime
+  modified: DateTime
+}
+```
 
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| PK | String (Partition Key) | Primary partition key |
-| SK | String (Sort Key) | Primary sort key |
-| GSI1PK | String | GSI1 partition key |
-| GSI1SK | String | GSI1 sort key |
-| GSI2PK | String | GSI2 partition key |
-| GSI2SK | String | GSI2 sort key |
-| GSI3PK | String | GSI3 partition key |
-| GSI3SK | String | GSI3 sort key |
-| GSI4PK | String | GSI4 partition key (reserved) |
-| GSI4SK | String | GSI4 sort key (reserved) |
+**Key Pattern:** `ACCOUNT#{org_name}`
+**Critical Gap:** Missing `updateOrganization()` method
 
-### Global Secondary Indexes (GSIs)
+#### Repository Entity (MISSING)
+```typescript
+interface RepositoryEntity {
+  owner: string
+  repoName: string
+  description?: string
+  isPrivate: boolean
+  language?: string
+  created: DateTime
+  modified: DateTime
+}
+```
+
+**Key Pattern:** `REPO#{owner}#{repo_name}`
+**Status:** ❌ Completely missing implementation
+
+## Data Persistence
+
+### Single Table Design
+
+**Table:** GitHubTable
+**Partition Key:** PK
+**Sort Key:** SK
+**Billing Mode:** PAY_PER_REQUEST
+
+#### Key Patterns
+- **Accounts:** `ACCOUNT#{name}` (for both users and organizations)
+- **Repositories:** `REPO#{owner}#{repo_name}`
+
+#### Global Secondary Indexes
 
 | GSI | Partition Key | Sort Key | Purpose |
 |-----|---------------|----------|---------|
-| GSI1 | GSI1PK | GSI1SK | Account queries, repo queries |
-| GSI2 | GSI2PK | GSI2SK | Repo lookup, fork relationships |
-| GSI3 | GSI3PK | GSI3SK | Recent repos by account, user/org lookup |
-| GSI4 | GSI4PK | GSI4SK | Reserved for future repo metadata queries |
+| GSI1 | GSI1PK | GSI1SK | General queries |
+| GSI2 | GSI2PK | GSI2SK | Metadata queries |
+| GSI3 | GSI3PK | GSI3SK | Repository-by-owner queries |
 
-### Access Patterns
+#### Access Patterns
 
-| Pattern | Method | Key Pattern | Index | Example |
-|---------|--------|-------------|-------|---------|
-| Get User by Username | GetItem | `PK=ACCOUNT#{username}` | Main Table | `ACCOUNT#octocat` |
-| Get Organization by Name | GetItem | `PK=ACCOUNT#{org_name}` | Main Table | `ACCOUNT#github` |
-| Get Repository by Owner/Name | GetItem | `PK=REPO#{owner}#{repo_name}` | Main Table | `REPO#octocat#Hello-World` |
-| List Repos by Owner | Query | `GSI3PK=ACCOUNT#{owner}` | GSI3 | `ACCOUNT#octocat` |
-| Recent Repos by Owner | Query | `GSI3PK=ACCOUNT#{owner}`, sort by `GSI3SK` | GSI3 | Sort by timestamp |
-| List All Accounts | Scan | `PK` begins_with `ACCOUNT#` | Main Table | Filter scan |
+**Core Entity Operations (Main Table):**
+- `GetItem PK=ACCOUNT#{username}, SK=ACCOUNT#{username}` - Get user
+- `GetItem PK=ACCOUNT#{orgname}, SK=ACCOUNT#{orgname}` - Get organization
+- `GetItem PK=REPO#{owner}#{reponame}, SK=REPO#{owner}#{reponame}` - Get repository
 
-### Sparse Index Usage
+**Repository-by-Owner Queries (GSI3 - HAS CRITICAL BUG):**
+- `Query GSI3PK=ACCOUNT#{owner}, GSI3SK begins_with '#'` - List repos by user or organization
+- `Query GSI3 sort by GSI3SK (updated_at)` - Recent repositories by user or organization
 
-GSI attributes are only populated when the entity uses that specific index:
+**Note**: `ACCOUNT#` is a key pattern shared by both Users and Organizations - it's not a separate entity type.
 
-- **User/Organization**: Only populate GSI1 and GSI3 keys
-- **Repository**: Populate GSI1, GSI2, and GSI3 keys
-- **GSI4**: Reserved for future use, no current population
+**Critical Schema Bug:** RepoRecord.GSI3SK uses `DateTime.utc()` at schema definition time instead of record creation time, causing all repositories to have the same timestamp.
 
-## Repository Layer
+### Repository Pattern
 
-### UserRepository
+UserRepository establishes the proven data access pattern:
 
 ```typescript
-interface UserRepository {
-  create(userData: CreateUserRequest): Promise<UserRecord>
-  get(username: string): Promise<UserRecord | null>
-  update(username: string, updates: UpdateUserRequest): Promise<UserRecord>
-  delete(username: string): Promise<void>
-  getByUsername(username: string): Promise<UserRecord | null>
-}
+class EntityRepository {
+  constructor(table: GithubTable, entity: EntityRecord)
 
-class UserRepositoryImpl implements UserRepository {
-  constructor(private table: Table) {}
-
-  async create(userData: CreateUserRequest): Promise<UserRecord> {
-    const user = UserRecord.build(userData)
-    await this.table.entities.User.put(user)
-    return user
-  }
-
-  async get(username: string): Promise<UserRecord | null> {
-    const result = await this.table.entities.User.get({
-      PK: `ACCOUNT#${username}`,
-      SK: `ACCOUNT#${username}`
-    })
-    return result.Item || null
-  }
-
-  async update(username: string, updates: UpdateUserRequest): Promise<UserRecord> {
-    const result = await this.table.entities.User.update({
-      PK: `ACCOUNT#${username}`,
-      SK: `ACCOUNT#${username}`
-    }, {
-      ...updates,
-      updated_at: new Date().toISOString()
-    })
-    return result.Attributes
-  }
-
-  async delete(username: string): Promise<void> {
-    await this.table.entities.User.delete({
-      PK: `ACCOUNT#${username}`,
-      SK: `ACCOUNT#${username}`
-    })
-  }
-
-  async getByUsername(username: string): Promise<UserRecord | null> {
-    return this.get(username)
-  }
+  // CRUD operations following UserRepository pattern
+  async createEntity(entity: Entity): Promise<Entity>
+  async getEntity(key: string): Promise<Entity | undefined>
+  async updateEntity(entity: Entity): Promise<Entity>
+  async deleteEntity(key: string): Promise<void>
+  async listEntities(limit?: number, offset?: string): Promise<EntityPage>
 }
 ```
 
-### OrganizationRepository
+**Error Handling Strategy:**
+- `ConditionalCheckFailedException` → `DuplicateEntityError` (create)
+- `ConditionalCheckFailedException` → `EntityNotFoundError` (update)
+- Cursor-based pagination with `encodePageToken/decodePageToken`
 
-```typescript
-interface OrganizationRepository {
-  create(orgData: CreateOrganizationRequest): Promise<OrganizationRecord>
-  get(orgName: string): Promise<OrganizationRecord | null>
-  update(orgName: string, updates: UpdateOrganizationRequest): Promise<OrganizationRecord>
-  delete(orgName: string): Promise<void>
-  getByOrgName(orgName: string): Promise<OrganizationRecord | null>
-}
+## Critical Gaps
 
-class OrganizationRepositoryImpl implements OrganizationRepository {
-  constructor(private table: Table) {}
+### Phase 1: Entity Layer (IMMEDIATE)
+**Priority: HIGH**
 
-  async create(orgData: CreateOrganizationRequest): Promise<OrganizationRecord> {
-    const org = OrganizationRecord.build(orgData)
-    await this.table.entities.Organization.put(org)
-    return org
-  }
+1. **Fix GSI3SK Timestamp Bug**
+   ```typescript
+   // Current (BROKEN)
+   GSI3SK: string().link<typeof schema>(() => `${DateTime.utc()}`)
 
-  async get(orgName: string): Promise<OrganizationRecord | null> {
-    const result = await this.table.entities.Organization.get({
-      PK: `ACCOUNT#${orgName}`,
-      SK: `ACCOUNT#${orgName}`
-    })
-    return result.Item || null
-  }
+   // Required (FIX)
+   GSI3SK: string().link<typeof schema>(() => `#${new Date().toISOString()}`)
+   ```
 
-  async update(orgName: string, updates: UpdateOrganizationRequest): Promise<OrganizationRecord> {
-    const result = await this.table.entities.Organization.update({
-      PK: `ACCOUNT#${orgName}`,
-      SK: `ACCOUNT#${orgName}`
-    }, {
-      ...updates,
-      updated_at: new Date().toISOString()
-    })
-    return result.Attributes
-  }
+2. **Implement RepositoryEntity (COMPLETE MISSING CLASS)**
+   - Constructor with `RepositoryEntityOpts`
+   - All 5 transformation methods following UserEntity pattern
+   - Proper field mapping: `repo_name` → `repoName`, `is_private` → `isPrivate`
 
-  async delete(orgName: string): Promise<void> {
-    await this.table.entities.Organization.delete({
-      PK: `ACCOUNT#${orgName}`,
-      SK: `ACCOUNT#${orgName}`
-    })
-  }
+3. **Add OrganizationEntity.updateOrganization()**
+   - Method signature: `updateOrganization(opts: UpdateOrganizationEntityOpts): OrganizationEntity`
+   - Follow UserEntity.updateUser() immutable pattern
 
-  async getByOrgName(orgName: string): Promise<OrganizationRecord | null> {
-    return this.get(orgName)
-  }
-}
+### Phase 2: Repository Layer (HIGH)
+**Priority: HIGH**
+
+1. **Implement RepositoryRepository (COMPLETE MISSING CLASS)**
+   - Constructor: `constructor(table: GithubTable, record: RepoRecord)`
+   - All CRUD methods following UserRepository pattern
+   - GSI3 query methods: `listReposByOwner(owner: string)`
+
+2. **Fix OrganizationRepository.listOrgs()**
+   ```typescript
+   // Current (BROKEN)
+   return this.table.build(QueryCommand).scan()
+
+   // Required (FIX)
+   return this.table.build(ScanCommand)
+   ```
+
+### Phase 3: Test Coverage (MEDIUM)
+**Priority: MEDIUM**
+
+1. **OrganizationRepository.test.ts** - Follow UserRepository test pattern
+2. **RepositoryRepository.test.ts** - Comprehensive CRUD and GSI tests
+3. **Integration tests** for GSI3 repository queries
+
+## Component Dependencies
+
+### Layered Architecture Flow
+```
+Router → Service → Repository → Entity → Database
 ```
 
-### RepositoryRepository
+### Data Transformation Flow
 
-```typescript
-interface RepositoryRepository {
-  create(repoData: CreateRepositoryRequest): Promise<RepositoryRecord>
-  get(owner: string, repoName: string): Promise<RepositoryRecord | null>
-  update(owner: string, repoName: string, updates: UpdateRepositoryRequest): Promise<RepositoryRecord>
-  delete(owner: string, repoName: string): Promise<void>
-  getByOwnerAndName(owner: string, repoName: string): Promise<RepositoryRecord | null>
-  listByOwner(owner: string, limit?: number): Promise<RepositoryRecord[]>
-}
-
-class RepositoryRepositoryImpl implements RepositoryRepository {
-  constructor(private table: Table) {}
-
-  async create(repoData: CreateRepositoryRequest): Promise<RepositoryRecord> {
-    const repo = RepositoryRecord.build(repoData)
-    await this.table.entities.Repository.put(repo)
-    return repo
-  }
-
-  async get(owner: string, repoName: string): Promise<RepositoryRecord | null> {
-    const result = await this.table.entities.Repository.get({
-      PK: `REPO#${owner}#${repoName}`,
-      SK: `REPO#${owner}#${repoName}`
-    })
-    return result.Item || null
-  }
-
-  async update(owner: string, repoName: string, updates: UpdateRepositoryRequest): Promise<RepositoryRecord> {
-    const result = await this.table.entities.Repository.update({
-      PK: `REPO#${owner}#${repoName}`,
-      SK: `REPO#${owner}#${repoName}`
-    }, {
-      ...updates,
-      updated_at: new Date().toISOString()
-    })
-    return result.Attributes
-  }
-
-  async delete(owner: string, repoName: string): Promise<void> {
-    await this.table.entities.Repository.delete({
-      PK: `REPO#${owner}#${repoName}`,
-      SK: `REPO#${owner}#${repoName}`
-    })
-  }
-
-  async getByOwnerAndName(owner: string, repoName: string): Promise<RepositoryRecord | null> {
-    return this.get(owner, repoName)
-  }
-
-  async listByOwner(owner: string, limit = 50): Promise<RepositoryRecord[]> {
-    const result = await this.table.query('GSI3', {
-      GSI3PK: `ACCOUNT#${owner}`,
-      limit,
-      scanIndexForward: false // Most recent first
-    })
-    return result.Items
-  }
-}
+**Inbound (API → Database):**
+```
+API Request → fromRequest() → Entity → toRecord() → DynamoDB
 ```
 
-## Key Generation
-
-### Composite Key Patterns
-
-#### Account Keys (Users & Organizations)
-```typescript
-const generateAccountKeys = (name: string) => ({
-  PK: `ACCOUNT#${name}`,
-  SK: `ACCOUNT#${name}`,
-  GSI1PK: `ACCOUNT#${name}`,
-  GSI1SK: `ACCOUNT#${name}`,
-  GSI3PK: `ACCOUNT#${name}`,
-  GSI3SK: `ACCOUNT#${name}`
-})
+**Outbound (Database → API):**
+```
+DynamoDB → fromRecord() → Entity → toResponse() → API Response
 ```
 
-#### Repository Keys
-```typescript
-const generateRepositoryKeys = (owner: string, repoName: string, updatedAt: string) => ({
-  PK: `REPO#${owner}#${repoName}`,
-  SK: `REPO#${owner}#${repoName}`,
-  GSI1PK: `REPO#${owner}#${repoName}`,
-  GSI1SK: `REPO#${owner}#${repoName}`,
-  GSI2PK: `REPO#${owner}#${repoName}`,
-  GSI2SK: `REPO#${owner}#${repoName}`,
-  GSI3PK: `ACCOUNT#${owner}`,
-  GSI3SK: `#${updatedAt}`
-})
-```
+### Implementation Dependencies
 
-### Collision Prevention
+1. **Schema Bug Fix** → Required before any repository operations work
+2. **RepositoryEntity Complete** → Required before RepositoryRepository
+3. **Entity Pattern Consistency** → Required before service layer
+4. **Repository CRUD Complete** → Required before GSI query implementation
 
-1. **Username/Organization Name Uniqueness**: Both use `ACCOUNT#` prefix, preventing name collisions
-2. **Repository Uniqueness**: Composite key ensures unique repositories per owner
-3. **Key Validation**: Entity validation ensures proper character sets and formats
-4. **Case Sensitivity**: All keys are case-sensitive as stored
+## Implementation Roadmap
 
-### KeyGenerator Utility
+### Phase 1: Foundation Completion (IMMEDIATE)
+**Target: Fix critical blocking issues**
 
-```typescript
-class KeyGenerator {
-  static account(name: string): string {
-    if (!name || !/^[a-zA-Z0-9_-]+$/.test(name)) {
-      throw new Error('Invalid account name format')
-    }
-    return `ACCOUNT#${name}`
-  }
+**Tasks:**
+- [ ] Fix RepoRecord.GSI3SK timestamp generation in schema.ts
+- [ ] Implement complete RepositoryEntity class with all transformation methods
+- [ ] Add OrganizationEntity.updateOrganization() method
+- [ ] Create fixtures for RepositoryEntity and OrganizationEntity
 
-  static repository(owner: string, repoName: string): string {
-    if (!owner || !repoName) {
-      throw new Error('Owner and repository name are required')
-    }
-    if (!/^[a-zA-Z0-9_-]+$/.test(owner) || !/^[a-zA-Z0-9_.-]+$/.test(repoName)) {
-      throw new Error('Invalid repository key format')
-    }
-    return `REPO#${owner}#${repoName}`
-  }
+**Success Criteria:** All entities have consistent transformation patterns
 
-  static timestampSortKey(timestamp: string): string {
-    return `#${timestamp}`
-  }
-}
-```
+### Phase 2: Repository Completion (HIGH)
+**Target: Achieve CRUD parity across all domains**
 
-## Testing Strategy
+**Tasks:**
+- [ ] Implement complete RepositoryRepository class with all CRUD operations
+- [ ] Fix OrganizationRepository.listOrgs() to use ScanCommand
+- [ ] Add GSI3 query methods for repository-by-owner patterns
+- [ ] Implement proper error handling following UserRepository pattern
 
-### DynamoDB Local Setup
+**Success Criteria:** All repositories have consistent CRUD patterns
 
-```typescript
-// jest.config.js
-module.exports = {
-  setupFilesAfterEnv: ['<rootDir>/src/test-setup.ts'],
-  testEnvironment: 'node'
-}
+### Phase 3: Test Coverage (MEDIUM)
+**Target: Comprehensive test coverage**
 
-// src/test-setup.ts
-import { DynamoDBLocal } from 'dynamodb-local'
+**Tasks:**
+- [ ] Create OrganizationRepository.test.ts following UserRepository test pattern
+- [ ] Create RepositoryRepository.test.ts with comprehensive CRUD and GSI tests
+- [ ] Add integration tests for GSI3 repository queries
+- [ ] Test error handling and validation for all domains
 
-let dynamoLocal: any
+**Success Criteria:** 100% test coverage for all repository operations
 
-beforeAll(async () => {
-  dynamoLocal = await DynamoDBLocal.launch({
-    port: 8000,
-    inMemory: true
-  })
-})
+### Phase 4: Service Layer (LOW)
+**Target: Business logic implementation**
 
-afterAll(async () => {
-  if (dynamoLocal) {
-    await DynamoDBLocal.stop(dynamoLocal)
-  }
-})
-```
+**Tasks:**
+- [ ] Implement UserService business logic
+- [ ] Create OrganizationService and RepositoryService
+- [ ] Add cross-domain business rules (e.g., repository ownership validation)
 
-### Test Patterns
+**Success Criteria:** Service layer provides business logic orchestration
 
-#### Repository Testing
-```typescript
-describe('UserRepository', () => {
-  let repository: UserRepository
-  let table: Table
+## Next Actions
 
-  beforeEach(async () => {
-    // Setup table and repository
-    table = createTestTable()
-    repository = new UserRepositoryImpl(table)
-  })
+### Immediate (Fix Critical Blockers)
+1. **Fix GSI3SK timestamp bug** in RepoRecord schema - currently breaks all temporal queries
+2. **Implement RepositoryEntity** with complete transformation methods
+3. **Add OrganizationEntity.updateOrganization()** method for pattern consistency
 
-  test('should create user successfully', async () => {
-    const userData = {
-      username: 'testuser',
-      email: 'test@example.com',
-      bio: 'Test user bio'
-    }
+### Short-term (Complete Core Implementation)
+1. **Implement RepositoryRepository** with full CRUD operations
+2. **Fix OrganizationRepository.listOrgs()** scan pattern
+3. **Create comprehensive test coverage** for Organization and Repository domains
 
-    const user = await repository.create(userData)
-    
-    expect(user.username).toBe('testuser')
-    expect(user.PK).toBe('ACCOUNT#testuser')
-    expect(user.created_at).toBeDefined()
-  })
+### Dependencies & Blockers
+- RepositoryEntity must be complete before RepositoryRepository can be implemented
+- Schema timestamp bug must be fixed before any repository operations will work correctly
+- Entity patterns must be consistent before service layer implementation can begin
 
-  test('should prevent duplicate usernames', async () => {
-    const userData = { username: 'duplicate', email: 'test@example.com' }
-    
-    await repository.create(userData)
-    
-    await expect(repository.create(userData))
-      .rejects.toThrow('ConditionalCheckFailedException')
-  })
-})
-```
+## Architectural Decisions
 
-#### Data Factories
-```typescript
-class TestDataFactory {
-  static user(overrides: Partial<CreateUserRequest> = {}): CreateUserRequest {
-    return {
-      username: `user_${Date.now()}`,
-      email: `test_${Date.now()}@example.com`,
-      bio: 'Test user bio',
-      ...overrides
-    }
-  }
+### ✅ Proven Decisions
+- **Single Table Design**: DynamoDB single table with composite keys working correctly
+- **Entity Transformation Architecture**: UserEntity proves the pattern works effectively
+- **Error Handling Strategy**: Type-safe error handling with domain-specific errors
+- **Pagination Strategy**: Cursor-based pagination with encoded tokens
 
-  static organization(overrides: Partial<CreateOrganizationRequest> = {}): CreateOrganizationRequest {
-    return {
-      org_name: `org_${Date.now()}`,
-      description: 'Test organization',
-      ...overrides
-    }
-  }
+### ⚠️ Partial Decisions
+- **GSI Design**: GSI3 designed for repository-by-owner queries, but has timestamp bug and missing implementations
 
-  static repository(overrides: Partial<CreateRepositoryRequest> = {}): CreateRepositoryRequest {
-    return {
-      owner: `owner_${Date.now()}`,
-      repo_name: `repo_${Date.now()}`,
-      description: 'Test repository',
-      is_private: false,
-      language: 'TypeScript',
-      ...overrides
-    }
-  }
-}
-```
-
-## Dependencies
-
-### Production Dependencies
-
-```json
-{
-  "dynamodb-toolbox": "^1.0.0",
-  "@aws-sdk/client-dynamodb": "^3.0.0", 
-  "@aws-sdk/lib-dynamodb": "^3.0.0"
-}
-```
-
-### Development Dependencies
-
-```json
-{
-  "dynamodb-local": "^2.0.0",
-  "@types/jest": "^29.0.0",
-  "@types/node": "^20.0.0"
-}
-```
-
-### Table Configuration
-
-```typescript
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
-import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
-import { Table } from 'dynamodb-toolbox'
-
-const client = DynamoDBDocumentClient.from(new DynamoDBClient({
-  region: process.env.AWS_REGION || 'us-east-1',
-  ...(process.env.NODE_ENV === 'test' && {
-    endpoint: 'http://localhost:8000'
-  })
-}))
-
-const GitHubTable = new Table({
-  name: 'GitHubTable',
-  partitionKey: 'PK',
-  sortKey: 'SK',
-  indexes: {
-    GSI1: { partitionKey: 'GSI1PK', sortKey: 'GSI1SK' },
-    GSI2: { partitionKey: 'GSI2PK', sortKey: 'GSI2SK' },
-    GSI3: { partitionKey: 'GSI3PK', sortKey: 'GSI3SK' }
-  },
-  DocumentClient: client
-})
-```
-
-## Implementation Notes
-
-### Important Considerations
-
-1. **Key Validation**: All entity names must follow strict character set validation to prevent injection attacks and ensure URL compatibility
-
-2. **Timestamp Consistency**: Use ISO 8601 format (`new Date().toISOString()`) for all timestamp fields to ensure proper sorting
-
-3. **GSI Population Strategy**: Only populate GSI keys for entities that actually use those indexes to minimize storage costs
-
-4. **Update Patterns**: Always update the `updated_at` timestamp on any entity modification to maintain proper GSI3 sorting
-
-5. **Error Handling**: Implement proper error handling for:
-   - Conditional check failures (duplicate keys)
-   - Validation errors (invalid formats)
-   - DynamoDB service errors (throttling, capacity)
-
-### Constraints
-
-1. **Single Table Design**: All entities share the same table structure
-2. **Key Length Limits**: DynamoDB partition keys limited to 2048 bytes
-3. **Item Size Limits**: Individual items cannot exceed 400KB
-4. **GSI Projection**: All GSIs use ALL projection for simplicity
-5. **Eventual Consistency**: GSI queries are eventually consistent
-
-### Future Considerations
-
-1. **GSI4 Usage**: Reserved for future repo metadata queries (stars, forks, etc.)
-2. **Batch Operations**: Consider implementing batch read/write operations for efficiency
-3. **Caching Layer**: May need caching for frequently accessed entities
-4. **Backup Strategy**: Consider point-in-time recovery for production deployments
+The User domain serves as the complete reference implementation. All other domains must follow the exact same patterns to achieve architectural consistency and enable AI-assisted development.

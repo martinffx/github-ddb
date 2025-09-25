@@ -1,402 +1,649 @@
 {
-  "requirements": {
-    "entities": {
-      "issue": {
-        "attributes": ["issue_number", "title", "body", "status", "author", "assignees", "created_at", "updated_at"],
-        "key_pattern": "REPO#<owner>#<reponame> → ISSUE#<number>",
-        "indexes": ["GSI4"],
-        "sequential_numbering": true
-      },
-      "pull_request": {
-        "attributes": ["pr_number", "title", "body", "status", "author", "source_branch", "target_branch", "created_at", "updated_at"],
-        "key_pattern": "PR#<owner>#<reponame>#<number> → PR#<owner>#<reponame>#<number>",
-        "indexes": ["GSI1"],
-        "sequential_numbering": true
-      },
-      "issue_comment": {
-        "attributes": ["comment_id", "issue_number", "content", "author", "created_at", "updated_at"],
-        "key_pattern": "ISSUECOMMENT#<owner>#<reponame>#<issue> → ISSUECOMMENT#<id>",
-        "indexes": [],
-        "item_collection": true
-      },
-      "pr_comment": {
-        "attributes": ["comment_id", "pr_number", "content", "author", "created_at", "updated_at"],
-        "key_pattern": "PRCOMMENT#<owner>#<reponame>#<pr> → PRCOMMENT#<id>",
-        "indexes": [],
-        "item_collection": true
-      },
-      "reaction": {
-        "attributes": ["target_type", "target_id", "reaction_type", "username", "created_at"],
-        "key_pattern": "<type>REACTION#<owner>#<repo>#<target>#<user> → <type>REACTION#<owner>#<repo>#<target>#<user>",
-        "indexes": [],
-        "polymorphic": true
-      },
-      "fork": {
-        "attributes": ["original_owner", "original_repo", "fork_owner", "fork_repo", "created_at"],
-        "key_pattern": "REPO#<original_owner>#<original_repo> → FORK#<fork_owner>",
-        "indexes": ["GSI2"],
-        "adjacency_list": true
-      },
-      "star": {
-        "attributes": ["username", "repo_owner", "repo_name", "created_at"],
-        "key_pattern": "ACCOUNT#<username> → STAR#<owner>#<reponame>",
-        "indexes": [],
-        "many_to_many": true
-      }
-    },
-    "data_persistence": {
-      "database": "DynamoDB",
-      "design": "single_table",
-      "table_name": "GitHubTable",
-      "partition_key": "PK",
-      "sort_key": "SK",
-      "gsis": {
-        "GSI1": "PullRequest repository listing",
-        "GSI2": "Fork adjacency list queries",
-        "GSI4": "Issue status queries (open/closed)"
-      }
-    },
-    "api_needed": false,
-    "components": {
-      "records": ["IssueRecord", "PullRequestRecord", "IssueCommentRecord", "PRCommentRecord", "ReactionRecord", "ForkRecord", "StarRecord"],
-      "repositories": ["IssueRepository", "PullRequestRepository", "IssueCommentRepository", "PRCommentRepository", "ReactionRepository", "ForkRepository", "StarRepository"],
-      "utilities": ["SequentialNumberGenerator", "CommentIdGenerator"],
-      "tests": ["DynamoDBLocal", "ContentEntityFactories"]
-    },
-    "business_rules": {
-      "sequential_numbering": "Issues and PRs share sequential numbers per repository",
-      "gsi4_population": "Issues must populate GSI4 for status queries",
-      "comment_parent_validation": "Comments must reference valid Issues or PRs",
-      "reaction_uniqueness": "One reaction type per user per target",
-      "fork_integrity": "Fork relationships require valid source/target repos",
-      "star_many_to_many": "Stars are many-to-many between users and repos"
-    },
-    "dependencies": ["core-entities"]
-  },
-  "technical_needs": {
-    "domain_model": {
-      "entities": {
-        "issue": {
-          "record_class": "IssueRecord",
-          "attributes": ["issue_number", "title", "body", "status", "author", "assignees", "created_at", "updated_at"],
-          "key_generation": "REPO#<owner>#<reponame> → ISSUE#<zero_padded_number>",
-          "gsi4_keys": "ISSUE#OPEN#<reverse_number> | #ISSUE#CLOSED#<zero_padded_number>",
-          "transformations": ["fromRequest", "toRecord", "toResponse", "validate"],
-          "sequential_numbering": true
-        },
-        "pull_request": {
-          "record_class": "PullRequestRecord",
-          "attributes": ["pr_number", "title", "body", "status", "author", "source_branch", "target_branch", "created_at", "updated_at"],
-          "key_generation": "PR#<owner>#<reponame>#<zero_padded_number>",
-          "gsi1_keys": "PR#<owner>#<reponame> → PR#<zero_padded_number>",
-          "transformations": ["fromRequest", "toRecord", "toResponse", "validate"],
-          "sequential_numbering": true
-        },
-        "issue_comment": {
-          "record_class": "IssueCommentRecord",
-          "attributes": ["comment_id", "issue_number", "content", "author", "created_at", "updated_at"],
-          "key_generation": "ISSUECOMMENT#<owner>#<reponame>#<issue> → ISSUECOMMENT#<comment_id>",
-          "transformations": ["fromRequest", "toRecord", "toResponse", "validate"],
-          "item_collection": true
-        },
-        "pr_comment": {
-          "record_class": "PRCommentRecord",
-          "attributes": ["comment_id", "pr_number", "content", "author", "created_at", "updated_at"],
-          "key_generation": "PRCOMMENT#<owner>#<reponame>#<pr> → PRCOMMENT#<comment_id>",
-          "transformations": ["fromRequest", "toRecord", "toResponse", "validate"],
-          "item_collection": true
-        },
-        "reaction": {
-          "record_class": "ReactionRecord",
-          "attributes": ["target_type", "target_id", "reaction_type", "username", "created_at"],
-          "key_generation": "<target_type>REACTION#<owner>#<reponame>#<target_id>#<username>",
-          "transformations": ["fromRequest", "toRecord", "toResponse", "validate"],
-          "polymorphic": true
-        },
-        "fork": {
-          "record_class": "ForkRecord",
-          "attributes": ["original_owner", "original_repo", "fork_owner", "fork_repo", "created_at"],
-          "key_generation": "REPO#<original_owner>#<original_repo> → FORK#<fork_owner>",
-          "gsi2_keys": "REPO#<original_owner>#<original_repo> → FORK#<fork_owner>",
-          "transformations": ["fromRequest", "toRecord", "toResponse", "validate"],
-          "adjacency_list": true
-        },
-        "star": {
-          "record_class": "StarRecord",
-          "attributes": ["username", "repo_owner", "repo_name", "created_at"],
-          "key_generation": "ACCOUNT#<username> → STAR#<owner>#<reponame>",
-          "transformations": ["fromRequest", "toRecord", "toResponse", "validate"],
-          "many_to_many": true
-        }
-      },
-      "repositories": {
-        "issue_repository": {
-          "class_name": "IssueRepository",
-          "operations": ["create", "get", "update", "delete", "listByRepo", "listOpenByRepo", "listClosedByRepo"],
-          "entity": "IssueRecord",
-          "gsi_usage": ["GSI4"]
-        },
-        "pull_request_repository": {
-          "class_name": "PullRequestRepository", 
-          "operations": ["create", "get", "update", "delete", "listByRepo", "getByNumber"],
-          "entity": "PullRequestRecord",
-          "gsi_usage": ["GSI1"]
-        },
-        "issue_comment_repository": {
-          "class_name": "IssueCommentRepository",
-          "operations": ["create", "get", "update", "delete", "listByIssue"],
-          "entity": "IssueCommentRecord",
-          "item_collection": true
-        },
-        "pr_comment_repository": {
-          "class_name": "PRCommentRepository",
-          "operations": ["create", "get", "update", "delete", "listByPR"],
-          "entity": "PRCommentRecord",
-          "item_collection": true
-        },
-        "reaction_repository": {
-          "class_name": "ReactionRepository",
-          "operations": ["create", "delete", "listByTarget", "getByUserAndTarget"],
-          "entity": "ReactionRecord",
-          "polymorphic": true
-        },
-        "fork_repository": {
-          "class_name": "ForkRepository",
-          "operations": ["create", "delete", "listForksOfRepo", "getFork"],
-          "entity": "ForkRecord",
-          "gsi_usage": ["GSI2"]
-        },
-        "star_repository": {
-          "class_name": "StarRepository",
-          "operations": ["create", "delete", "listStarsByUser", "listStargazersByRepo", "isStarred"],
-          "entity": "StarRecord"
-        }
-      },
-      "utilities": {
-        "sequential_number_generator": {
-          "class_name": "SequentialNumberGenerator",
-          "strategy": "Atomic counter using DynamoDB conditional writes",
-          "key_pattern": "COUNTER#<owner>#<reponame>",
-          "zero_padding": "6 digits",
-          "shared_sequence": "Issues and PRs use same counter per repository"
-        },
-        "comment_id_generator": {
-          "class_name": "CommentIdGenerator", 
-          "strategy": "UUID v4 or ULID for comment uniqueness",
-          "scope": "Unique within parent item collection"
-        }
-      }
-    },
-    "persistence": {
-      "database": "DynamoDB",
-      "table_config": {
-        "table_name": "GitHubTable",
-        "partition_key": "PK",
-        "sort_key": "SK",
-        "gsi_config": {
-          "GSI1": {"pk": "GSI1PK", "sk": "GSI1SK", "projection": "ALL", "purpose": "PR repository listing"},
-          "GSI2": {"pk": "GSI2PK", "sk": "GSI2SK", "projection": "ALL", "purpose": "Fork adjacency queries"},
-          "GSI4": {"pk": "GSI4PK", "sk": "GSI4SK", "projection": "ALL", "purpose": "Issue status queries"}
-        }
-      },
-      "access_patterns": {
-        "list_issues_by_repo": "PK query with REPO#<owner>#<repo>, SK begins_with ISSUE#",
-        "list_open_issues": "GSI4 query with GSI4PK=REPO#<owner>#<repo>, GSI4SK begins_with ISSUE#OPEN#",
-        "list_closed_issues": "GSI4 query with GSI4PK=REPO#<owner>#<repo>, GSI4SK begins_with #ISSUE#CLOSED#", 
-        "list_prs_by_repo": "GSI1 query with GSI1PK=PR#<owner>#<repo>, sort by GSI1SK",
-        "list_comments": "PK query with ISSUECOMMENT#<owner>#<repo>#<issue> or PRCOMMENT#<owner>#<repo>#<pr>",
-        "list_forks": "GSI2 query with GSI2PK=REPO#<owner>#<repo>, GSI2SK begins_with FORK#"
-      }
-    },
-    "router": null,
-    "events": null,
-    "dependencies": {
-      "required_foundation": ["User entity", "Repository entity", "KeyGenerator utility", "DynamoDB table with GSIs"],
-      "blocking_status": "core-entities must be fully implemented first",
-      "shared_utilities": ["SequentialNumberGenerator", "CommentIdGenerator"],
-      "cross_entity_validation": ["User.exists()", "Repository.exists()"]
-    }
-  },
-  "design": {
-    "domain_model": {
-      "entities": {
-        "issue": {
-          "schema": {
-            "PK": {"type": "string", "key": true, "partitionKey": true},
-            "SK": {"type": "string", "key": true, "sortKey": true},
-            "GSI4PK": {"type": "string", "key": true},
-            "GSI4SK": {"type": "string", "key": true},
-            "issue_number": {"type": "number", "required": true},
-            "title": {"type": "string", "required": true},
-            "body": {"type": "string", "required": false},
-            "status": {"type": "string", "required": true, "default": "open"},
-            "author": {"type": "string", "required": true},
-            "assignees": {"type": "list", "required": false},
-            "created_at": {"type": "string", "required": true, "default": "NOW"},
-            "updated_at": {"type": "string", "required": true, "default": "NOW"}
-          },
-          "key_generation": {
-            "PK": "REPO#{owner}#{repo_name}",
-            "SK": "ISSUE#{zero_padded_number}",
-            "GSI4PK": "REPO#{owner}#{repo_name}",
-            "GSI4SK": "ISSUE#OPEN#{999999_minus_number} | #ISSUE#CLOSED#{zero_padded_number}"
-          }
-        },
-        "pull_request": {
-          "schema": {
-            "PK": {"type": "string", "key": true, "partitionKey": true},
-            "SK": {"type": "string", "key": true, "sortKey": true},
-            "GSI1PK": {"type": "string", "key": true},
-            "GSI1SK": {"type": "string", "key": true},
-            "pr_number": {"type": "number", "required": true},
-            "title": {"type": "string", "required": true},
-            "body": {"type": "string", "required": false},
-            "status": {"type": "string", "required": true, "default": "open"},
-            "author": {"type": "string", "required": true},
-            "source_branch": {"type": "string", "required": true},
-            "target_branch": {"type": "string", "required": true, "default": "main"},
-            "created_at": {"type": "string", "required": true, "default": "NOW"},
-            "updated_at": {"type": "string", "required": true, "default": "NOW"}
-          },
-          "key_generation": {
-            "PK": "PR#{owner}#{repo_name}#{zero_padded_number}",
-            "SK": "PR#{owner}#{repo_name}#{zero_padded_number}",
-            "GSI1PK": "PR#{owner}#{repo_name}",
-            "GSI1SK": "PR#{zero_padded_number}"
-          }
-        },
-        "issue_comment": {
-          "schema": {
-            "PK": {"type": "string", "key": true, "partitionKey": true},
-            "SK": {"type": "string", "key": true, "sortKey": true},
-            "comment_id": {"type": "string", "required": true},
-            "issue_number": {"type": "number", "required": true},
-            "content": {"type": "string", "required": true},
-            "author": {"type": "string", "required": true},
-            "created_at": {"type": "string", "required": true, "default": "NOW"},
-            "updated_at": {"type": "string", "required": true, "default": "NOW"}
-          },
-          "key_generation": {
-            "PK": "ISSUECOMMENT#{owner}#{repo_name}#{issue_number}",
-            "SK": "ISSUECOMMENT#{comment_id}"
-          }
-        },
-        "pr_comment": {
-          "schema": {
-            "PK": {"type": "string", "key": true, "partitionKey": true},
-            "SK": {"type": "string", "key": true, "sortKey": true},
-            "comment_id": {"type": "string", "required": true},
-            "pr_number": {"type": "number", "required": true},
-            "content": {"type": "string", "required": true},
-            "author": {"type": "string", "required": true},
-            "created_at": {"type": "string", "required": true, "default": "NOW"},
-            "updated_at": {"type": "string", "required": true, "default": "NOW"}
-          },
-          "key_generation": {
-            "PK": "PRCOMMENT#{owner}#{repo_name}#{pr_number}",
-            "SK": "PRCOMMENT#{comment_id}"
-          }
-        },
-        "reaction": {
-          "schema": {
-            "PK": {"type": "string", "key": true, "partitionKey": true},
-            "SK": {"type": "string", "key": true, "sortKey": true},
-            "target_type": {"type": "string", "required": true},
-            "target_id": {"type": "string", "required": true},
-            "reaction_type": {"type": "string", "required": true},
-            "username": {"type": "string", "required": true},
-            "created_at": {"type": "string", "required": true, "default": "NOW"}
-          },
-          "key_generation": {
-            "PK": "{target_type}REACTION#{owner}#{repo_name}#{target_id}#{username}",
-            "SK": "{target_type}REACTION#{owner}#{repo_name}#{target_id}#{username}"
-          }
-        },
-        "fork": {
-          "schema": {
-            "PK": {"type": "string", "key": true, "partitionKey": true},
-            "SK": {"type": "string", "key": true, "sortKey": true},
-            "GSI2PK": {"type": "string", "key": true},
-            "GSI2SK": {"type": "string", "key": true},
-            "original_owner": {"type": "string", "required": true},
-            "original_repo": {"type": "string", "required": true},
-            "fork_owner": {"type": "string", "required": true},
-            "fork_repo": {"type": "string", "required": true},
-            "created_at": {"type": "string", "required": true, "default": "NOW"}
-          },
-          "key_generation": {
-            "PK": "REPO#{original_owner}#{original_repo}",
-            "SK": "FORK#{fork_owner}",
-            "GSI2PK": "REPO#{original_owner}#{original_repo}",
-            "GSI2SK": "FORK#{fork_owner}"
-          }
-        },
-        "star": {
-          "schema": {
-            "PK": {"type": "string", "key": true, "partitionKey": true},
-            "SK": {"type": "string", "key": true, "sortKey": true},
-            "username": {"type": "string", "required": true},
-            "repo_owner": {"type": "string", "required": true},
-            "repo_name": {"type": "string", "required": true},
-            "created_at": {"type": "string", "required": true, "default": "NOW"}
-          },
-          "key_generation": {
-            "PK": "ACCOUNT#{username}",
-            "SK": "STAR#{owner}#{repo_name}"
-          }
-        }
-      },
-      "services": null
-    },
-    "database": {
-      "table_name": "GitHubTable",
-      "partition_key": "PK",
-      "sort_key": "SK",
-      "gsi": {
-        "GSI1": {
-          "partition_key": "GSI1PK",
-          "sort_key": "GSI1SK",
-          "projection_type": "ALL",
-          "purpose": "PR repository listing"
-        },
-        "GSI2": {
-          "partition_key": "GSI2PK",
-          "sort_key": "GSI2SK",
-          "projection_type": "ALL",
-          "purpose": "Fork adjacency queries"
-        },
-        "GSI4": {
-          "partition_key": "GSI4PK",
-          "sort_key": "GSI4SK",
-          "projection_type": "ALL",
-          "purpose": "Issue status queries"
-        }
-      },
-      "access_patterns": {
-        "get_issue": "Query PK with REPO#{owner}#{repo}, SK=ISSUE#{number}",
-        "list_issues_by_repo": "Query PK with REPO#{owner}#{repo}, SK begins_with ISSUE#",
-        "list_open_issues": "Query GSI4PK with REPO#{owner}#{repo}, GSI4SK begins_with ISSUE#OPEN#",
-        "list_closed_issues": "Query GSI4PK with REPO#{owner}#{repo}, GSI4SK begins_with #ISSUE#CLOSED#",
-        "get_pr": "Query PK with PR#{owner}#{repo}#{number}",
-        "list_prs_by_repo": "Query GSI1PK with PR#{owner}#{repo}, sort by GSI1SK",
-        "list_comments_by_issue": "Query PK with ISSUECOMMENT#{owner}#{repo}#{issue}",
-        "list_comments_by_pr": "Query PK with PRCOMMENT#{owner}#{repo}#{pr}",
-        "list_forks": "Query GSI2PK with REPO#{owner}#{repo}, GSI2SK begins_with FORK#",
-        "list_stars_by_user": "Query PK with ACCOUNT#{username}, SK begins_with STAR#"
-      }
-    },
-    "endpoints": null,
-    "events": {
-      "issue_events": ["IssueCreated", "IssueUpdated", "IssueStatusChanged"],
-      "pr_events": ["PullRequestCreated", "PullRequestUpdated", "PullRequestMerged"],
-      "comment_events": ["CommentCreated", "CommentUpdated", "CommentDeleted"],
-      "reaction_events": ["ReactionAdded", "ReactionRemoved"],
-      "relationship_events": ["RepositoryForked", "RepositoryStarred", "RepositoryUnstarred"]
-    },
-    "dependencies": {
-      "core_entities": ["UserRepository", "RepositoryRepository"],
-      "utilities": ["SequentialNumberGenerator", "CommentIdGenerator", "KeyGenerator"],
-      "validation": ["UserValidator", "RepositoryValidator"]
-    }
-  }
+	"requirements": {
+		"entities": {
+			"issue": {
+				"attributes": [
+					"issue_number",
+					"title",
+					"body",
+					"status",
+					"author",
+					"assignees",
+					"created_at",
+					"updated_at"
+				],
+				"key_pattern": "REPO#<owner>#<reponame> → ISSUE#<number>",
+				"indexes": ["GSI4"],
+				"sequential_numbering": true
+			},
+			"pull_request": {
+				"attributes": [
+					"pr_number",
+					"title",
+					"body",
+					"status",
+					"author",
+					"source_branch",
+					"target_branch",
+					"created_at",
+					"updated_at"
+				],
+				"key_pattern": "PR#<owner>#<reponame>#<number> → PR#<owner>#<reponame>#<number>",
+				"indexes": ["GSI1"],
+				"sequential_numbering": true
+			},
+			"issue_comment": {
+				"attributes": [
+					"comment_id",
+					"issue_number",
+					"content",
+					"author",
+					"created_at",
+					"updated_at"
+				],
+				"key_pattern": "ISSUECOMMENT#<owner>#<reponame>#<issue> → ISSUECOMMENT#<id>",
+				"indexes": [],
+				"item_collection": true
+			},
+			"pr_comment": {
+				"attributes": [
+					"comment_id",
+					"pr_number",
+					"content",
+					"author",
+					"created_at",
+					"updated_at"
+				],
+				"key_pattern": "PRCOMMENT#<owner>#<reponame>#<pr> → PRCOMMENT#<id>",
+				"indexes": [],
+				"item_collection": true
+			},
+			"reaction": {
+				"attributes": [
+					"target_type",
+					"target_id",
+					"reaction_type",
+					"username",
+					"created_at"
+				],
+				"key_pattern": "<type>REACTION#<owner>#<repo>#<target>#<user> → <type>REACTION#<owner>#<repo>#<target>#<user>",
+				"indexes": [],
+				"polymorphic": true
+			},
+			"fork": {
+				"attributes": [
+					"original_owner",
+					"original_repo",
+					"fork_owner",
+					"fork_repo",
+					"created_at"
+				],
+				"key_pattern": "REPO#<original_owner>#<original_repo> → FORK#<fork_owner>",
+				"indexes": ["GSI2"],
+				"adjacency_list": true
+			},
+			"star": {
+				"attributes": ["username", "repo_owner", "repo_name", "created_at"],
+				"key_pattern": "ACCOUNT#<username> → STAR#<owner>#<reponame>",
+				"indexes": [],
+				"many_to_many": true
+			}
+		},
+		"data_persistence": {
+			"database": "DynamoDB",
+			"design": "single_table",
+			"table_name": "GitHubTable",
+			"partition_key": "PK",
+			"sort_key": "SK",
+			"gsis": {
+				"GSI1": "PullRequest repository listing",
+				"GSI2": "Fork adjacency list queries",
+				"GSI4": "Issue status queries (open/closed)"
+			}
+		},
+		"api_needed": false,
+		"components": {
+			"records": [
+				"IssueRecord",
+				"PullRequestRecord",
+				"IssueCommentRecord",
+				"PRCommentRecord",
+				"ReactionRecord",
+				"ForkRecord",
+				"StarRecord"
+			],
+			"repositories": [
+				"IssueRepository",
+				"PullRequestRepository",
+				"IssueCommentRepository",
+				"PRCommentRepository",
+				"ReactionRepository",
+				"ForkRepository",
+				"StarRepository"
+			],
+			"utilities": ["SequentialNumberGenerator", "CommentIdGenerator"],
+			"tests": ["DynamoDBLocal", "ContentEntityFactories"]
+		},
+		"business_rules": {
+			"sequential_numbering": "Issues and PRs share sequential numbers per repository",
+			"gsi4_population": "Issues must populate GSI4 for status queries",
+			"comment_parent_validation": "Comments must reference valid Issues or PRs",
+			"reaction_uniqueness": "One reaction type per user per target",
+			"fork_integrity": "Fork relationships require valid source/target repos",
+			"star_many_to_many": "Stars are many-to-many between users and repos"
+		},
+		"dependencies": ["core-entities"]
+	},
+	"technical_needs": {
+		"domain_model": {
+			"entities": {
+				"issue": {
+					"record_class": "IssueRecord",
+					"attributes": [
+						"issue_number",
+						"title",
+						"body",
+						"status",
+						"author",
+						"assignees",
+						"created_at",
+						"updated_at"
+					],
+					"key_generation": "REPO#<owner>#<reponame> → ISSUE#<zero_padded_number>",
+					"gsi4_keys": "ISSUE#OPEN#<reverse_number> | #ISSUE#CLOSED#<zero_padded_number>",
+					"transformations": [
+						"fromRequest",
+						"toRecord",
+						"toResponse",
+						"validate"
+					],
+					"sequential_numbering": true
+				},
+				"pull_request": {
+					"record_class": "PullRequestRecord",
+					"attributes": [
+						"pr_number",
+						"title",
+						"body",
+						"status",
+						"author",
+						"source_branch",
+						"target_branch",
+						"created_at",
+						"updated_at"
+					],
+					"key_generation": "PR#<owner>#<reponame>#<zero_padded_number>",
+					"gsi1_keys": "PR#<owner>#<reponame> → PR#<zero_padded_number>",
+					"transformations": [
+						"fromRequest",
+						"toRecord",
+						"toResponse",
+						"validate"
+					],
+					"sequential_numbering": true
+				},
+				"issue_comment": {
+					"record_class": "IssueCommentRecord",
+					"attributes": [
+						"comment_id",
+						"issue_number",
+						"content",
+						"author",
+						"created_at",
+						"updated_at"
+					],
+					"key_generation": "ISSUECOMMENT#<owner>#<reponame>#<issue> → ISSUECOMMENT#<comment_id>",
+					"transformations": [
+						"fromRequest",
+						"toRecord",
+						"toResponse",
+						"validate"
+					],
+					"item_collection": true
+				},
+				"pr_comment": {
+					"record_class": "PRCommentRecord",
+					"attributes": [
+						"comment_id",
+						"pr_number",
+						"content",
+						"author",
+						"created_at",
+						"updated_at"
+					],
+					"key_generation": "PRCOMMENT#<owner>#<reponame>#<pr> → PRCOMMENT#<comment_id>",
+					"transformations": [
+						"fromRequest",
+						"toRecord",
+						"toResponse",
+						"validate"
+					],
+					"item_collection": true
+				},
+				"reaction": {
+					"record_class": "ReactionRecord",
+					"attributes": [
+						"target_type",
+						"target_id",
+						"reaction_type",
+						"username",
+						"created_at"
+					],
+					"key_generation": "<target_type>REACTION#<owner>#<reponame>#<target_id>#<username>",
+					"transformations": [
+						"fromRequest",
+						"toRecord",
+						"toResponse",
+						"validate"
+					],
+					"polymorphic": true
+				},
+				"fork": {
+					"record_class": "ForkRecord",
+					"attributes": [
+						"original_owner",
+						"original_repo",
+						"fork_owner",
+						"fork_repo",
+						"created_at"
+					],
+					"key_generation": "REPO#<original_owner>#<original_repo> → FORK#<fork_owner>",
+					"gsi2_keys": "REPO#<original_owner>#<original_repo> → FORK#<fork_owner>",
+					"transformations": [
+						"fromRequest",
+						"toRecord",
+						"toResponse",
+						"validate"
+					],
+					"adjacency_list": true
+				},
+				"star": {
+					"record_class": "StarRecord",
+					"attributes": ["username", "repo_owner", "repo_name", "created_at"],
+					"key_generation": "ACCOUNT#<username> → STAR#<owner>#<reponame>",
+					"transformations": [
+						"fromRequest",
+						"toRecord",
+						"toResponse",
+						"validate"
+					],
+					"many_to_many": true
+				}
+			},
+			"repositories": {
+				"issue_repository": {
+					"class_name": "IssueRepository",
+					"operations": [
+						"create",
+						"get",
+						"update",
+						"delete",
+						"listByRepo",
+						"listOpenByRepo",
+						"listClosedByRepo"
+					],
+					"entity": "IssueRecord",
+					"gsi_usage": ["GSI4"]
+				},
+				"pull_request_repository": {
+					"class_name": "PullRequestRepository",
+					"operations": [
+						"create",
+						"get",
+						"update",
+						"delete",
+						"listByRepo",
+						"getByNumber"
+					],
+					"entity": "PullRequestRecord",
+					"gsi_usage": ["GSI1"]
+				},
+				"issue_comment_repository": {
+					"class_name": "IssueCommentRepository",
+					"operations": ["create", "get", "update", "delete", "listByIssue"],
+					"entity": "IssueCommentRecord",
+					"item_collection": true
+				},
+				"pr_comment_repository": {
+					"class_name": "PRCommentRepository",
+					"operations": ["create", "get", "update", "delete", "listByPR"],
+					"entity": "PRCommentRecord",
+					"item_collection": true
+				},
+				"reaction_repository": {
+					"class_name": "ReactionRepository",
+					"operations": [
+						"create",
+						"delete",
+						"listByTarget",
+						"getByUserAndTarget"
+					],
+					"entity": "ReactionRecord",
+					"polymorphic": true
+				},
+				"fork_repository": {
+					"class_name": "ForkRepository",
+					"operations": ["create", "delete", "listForksOfRepo", "getFork"],
+					"entity": "ForkRecord",
+					"gsi_usage": ["GSI2"]
+				},
+				"star_repository": {
+					"class_name": "StarRepository",
+					"operations": [
+						"create",
+						"delete",
+						"listStarsByUser",
+						"listStargazersByRepo",
+						"isStarred"
+					],
+					"entity": "StarRecord"
+				}
+			},
+			"utilities": {
+				"sequential_number_generator": {
+					"class_name": "SequentialNumberGenerator",
+					"strategy": "Atomic counter using DynamoDB conditional writes",
+					"key_pattern": "COUNTER#<owner>#<reponame>",
+					"zero_padding": "6 digits",
+					"shared_sequence": "Issues and PRs use same counter per repository"
+				},
+				"comment_id_generator": {
+					"class_name": "CommentIdGenerator",
+					"strategy": "UUID v4 or ULID for comment uniqueness",
+					"scope": "Unique within parent item collection"
+				}
+			}
+		},
+		"persistence": {
+			"database": "DynamoDB",
+			"table_config": {
+				"table_name": "GitHubTable",
+				"partition_key": "PK",
+				"sort_key": "SK",
+				"gsi_config": {
+					"GSI1": {
+						"pk": "GSI1PK",
+						"sk": "GSI1SK",
+						"projection": "ALL",
+						"purpose": "PR repository listing"
+					},
+					"GSI2": {
+						"pk": "GSI2PK",
+						"sk": "GSI2SK",
+						"projection": "ALL",
+						"purpose": "Fork adjacency queries"
+					},
+					"GSI4": {
+						"pk": "GSI4PK",
+						"sk": "GSI4SK",
+						"projection": "ALL",
+						"purpose": "Issue status queries"
+					}
+				}
+			},
+			"access_patterns": {
+				"list_issues_by_repo": "PK query with REPO#<owner>#<repo>, SK begins_with ISSUE#",
+				"list_open_issues": "GSI4 query with GSI4PK=REPO#<owner>#<repo>, GSI4SK begins_with ISSUE#OPEN#",
+				"list_closed_issues": "GSI4 query with GSI4PK=REPO#<owner>#<repo>, GSI4SK begins_with #ISSUE#CLOSED#",
+				"list_prs_by_repo": "GSI1 query with GSI1PK=PR#<owner>#<repo>, sort by GSI1SK",
+				"list_comments": "PK query with ISSUECOMMENT#<owner>#<repo>#<issue> or PRCOMMENT#<owner>#<repo>#<pr>",
+				"list_forks": "GSI2 query with GSI2PK=REPO#<owner>#<repo>, GSI2SK begins_with FORK#"
+			}
+		},
+		"router": null,
+		"events": null,
+		"dependencies": {
+			"required_foundation": [
+				"User entity",
+				"Repository entity",
+				"KeyGenerator utility",
+				"DynamoDB table with GSIs"
+			],
+			"blocking_status": "core-entities must be fully implemented first",
+			"shared_utilities": ["SequentialNumberGenerator", "CommentIdGenerator"],
+			"cross_entity_validation": ["User.exists()", "Repository.exists()"]
+		}
+	},
+	"design": {
+		"domain_model": {
+			"entities": {
+				"issue": {
+					"schema": {
+						"PK": { "type": "string", "key": true, "partitionKey": true },
+						"SK": { "type": "string", "key": true, "sortKey": true },
+						"GSI4PK": { "type": "string", "key": true },
+						"GSI4SK": { "type": "string", "key": true },
+						"issue_number": { "type": "number", "required": true },
+						"title": { "type": "string", "required": true },
+						"body": { "type": "string", "required": false },
+						"status": { "type": "string", "required": true, "default": "open" },
+						"author": { "type": "string", "required": true },
+						"assignees": { "type": "list", "required": false },
+						"created_at": {
+							"type": "string",
+							"required": true,
+							"default": "NOW"
+						},
+						"updated_at": {
+							"type": "string",
+							"required": true,
+							"default": "NOW"
+						}
+					},
+					"key_generation": {
+						"PK": "REPO#{owner}#{repo_name}",
+						"SK": "ISSUE#{zero_padded_number}",
+						"GSI4PK": "REPO#{owner}#{repo_name}",
+						"GSI4SK": "ISSUE#OPEN#{999999_minus_number} | #ISSUE#CLOSED#{zero_padded_number}"
+					}
+				},
+				"pull_request": {
+					"schema": {
+						"PK": { "type": "string", "key": true, "partitionKey": true },
+						"SK": { "type": "string", "key": true, "sortKey": true },
+						"GSI1PK": { "type": "string", "key": true },
+						"GSI1SK": { "type": "string", "key": true },
+						"pr_number": { "type": "number", "required": true },
+						"title": { "type": "string", "required": true },
+						"body": { "type": "string", "required": false },
+						"status": { "type": "string", "required": true, "default": "open" },
+						"author": { "type": "string", "required": true },
+						"source_branch": { "type": "string", "required": true },
+						"target_branch": {
+							"type": "string",
+							"required": true,
+							"default": "main"
+						},
+						"created_at": {
+							"type": "string",
+							"required": true,
+							"default": "NOW"
+						},
+						"updated_at": {
+							"type": "string",
+							"required": true,
+							"default": "NOW"
+						}
+					},
+					"key_generation": {
+						"PK": "PR#{owner}#{repo_name}#{zero_padded_number}",
+						"SK": "PR#{owner}#{repo_name}#{zero_padded_number}",
+						"GSI1PK": "PR#{owner}#{repo_name}",
+						"GSI1SK": "PR#{zero_padded_number}"
+					}
+				},
+				"issue_comment": {
+					"schema": {
+						"PK": { "type": "string", "key": true, "partitionKey": true },
+						"SK": { "type": "string", "key": true, "sortKey": true },
+						"comment_id": { "type": "string", "required": true },
+						"issue_number": { "type": "number", "required": true },
+						"content": { "type": "string", "required": true },
+						"author": { "type": "string", "required": true },
+						"created_at": {
+							"type": "string",
+							"required": true,
+							"default": "NOW"
+						},
+						"updated_at": {
+							"type": "string",
+							"required": true,
+							"default": "NOW"
+						}
+					},
+					"key_generation": {
+						"PK": "ISSUECOMMENT#{owner}#{repo_name}#{issue_number}",
+						"SK": "ISSUECOMMENT#{comment_id}"
+					}
+				},
+				"pr_comment": {
+					"schema": {
+						"PK": { "type": "string", "key": true, "partitionKey": true },
+						"SK": { "type": "string", "key": true, "sortKey": true },
+						"comment_id": { "type": "string", "required": true },
+						"pr_number": { "type": "number", "required": true },
+						"content": { "type": "string", "required": true },
+						"author": { "type": "string", "required": true },
+						"created_at": {
+							"type": "string",
+							"required": true,
+							"default": "NOW"
+						},
+						"updated_at": {
+							"type": "string",
+							"required": true,
+							"default": "NOW"
+						}
+					},
+					"key_generation": {
+						"PK": "PRCOMMENT#{owner}#{repo_name}#{pr_number}",
+						"SK": "PRCOMMENT#{comment_id}"
+					}
+				},
+				"reaction": {
+					"schema": {
+						"PK": { "type": "string", "key": true, "partitionKey": true },
+						"SK": { "type": "string", "key": true, "sortKey": true },
+						"target_type": { "type": "string", "required": true },
+						"target_id": { "type": "string", "required": true },
+						"reaction_type": { "type": "string", "required": true },
+						"username": { "type": "string", "required": true },
+						"created_at": {
+							"type": "string",
+							"required": true,
+							"default": "NOW"
+						}
+					},
+					"key_generation": {
+						"PK": "{target_type}REACTION#{owner}#{repo_name}#{target_id}#{username}",
+						"SK": "{target_type}REACTION#{owner}#{repo_name}#{target_id}#{username}"
+					}
+				},
+				"fork": {
+					"schema": {
+						"PK": { "type": "string", "key": true, "partitionKey": true },
+						"SK": { "type": "string", "key": true, "sortKey": true },
+						"GSI2PK": { "type": "string", "key": true },
+						"GSI2SK": { "type": "string", "key": true },
+						"original_owner": { "type": "string", "required": true },
+						"original_repo": { "type": "string", "required": true },
+						"fork_owner": { "type": "string", "required": true },
+						"fork_repo": { "type": "string", "required": true },
+						"created_at": {
+							"type": "string",
+							"required": true,
+							"default": "NOW"
+						}
+					},
+					"key_generation": {
+						"PK": "REPO#{original_owner}#{original_repo}",
+						"SK": "FORK#{fork_owner}",
+						"GSI2PK": "REPO#{original_owner}#{original_repo}",
+						"GSI2SK": "FORK#{fork_owner}"
+					}
+				},
+				"star": {
+					"schema": {
+						"PK": { "type": "string", "key": true, "partitionKey": true },
+						"SK": { "type": "string", "key": true, "sortKey": true },
+						"username": { "type": "string", "required": true },
+						"repo_owner": { "type": "string", "required": true },
+						"repo_name": { "type": "string", "required": true },
+						"created_at": {
+							"type": "string",
+							"required": true,
+							"default": "NOW"
+						}
+					},
+					"key_generation": {
+						"PK": "ACCOUNT#{username}",
+						"SK": "STAR#{owner}#{repo_name}"
+					}
+				}
+			},
+			"services": null
+		},
+		"database": {
+			"table_name": "GitHubTable",
+			"partition_key": "PK",
+			"sort_key": "SK",
+			"gsi": {
+				"GSI1": {
+					"partition_key": "GSI1PK",
+					"sort_key": "GSI1SK",
+					"projection_type": "ALL",
+					"purpose": "PR repository listing"
+				},
+				"GSI2": {
+					"partition_key": "GSI2PK",
+					"sort_key": "GSI2SK",
+					"projection_type": "ALL",
+					"purpose": "Fork adjacency queries"
+				},
+				"GSI4": {
+					"partition_key": "GSI4PK",
+					"sort_key": "GSI4SK",
+					"projection_type": "ALL",
+					"purpose": "Issue status queries"
+				}
+			},
+			"access_patterns": {
+				"get_issue": "Query PK with REPO#{owner}#{repo}, SK=ISSUE#{number}",
+				"list_issues_by_repo": "Query PK with REPO#{owner}#{repo}, SK begins_with ISSUE#",
+				"list_open_issues": "Query GSI4PK with REPO#{owner}#{repo}, GSI4SK begins_with ISSUE#OPEN#",
+				"list_closed_issues": "Query GSI4PK with REPO#{owner}#{repo}, GSI4SK begins_with #ISSUE#CLOSED#",
+				"get_pr": "Query PK with PR#{owner}#{repo}#{number}",
+				"list_prs_by_repo": "Query GSI1PK with PR#{owner}#{repo}, sort by GSI1SK",
+				"list_comments_by_issue": "Query PK with ISSUECOMMENT#{owner}#{repo}#{issue}",
+				"list_comments_by_pr": "Query PK with PRCOMMENT#{owner}#{repo}#{pr}",
+				"list_forks": "Query GSI2PK with REPO#{owner}#{repo}, GSI2SK begins_with FORK#",
+				"list_stars_by_user": "Query PK with ACCOUNT#{username}, SK begins_with STAR#"
+			}
+		},
+		"endpoints": null,
+		"events": {
+			"issue_events": ["IssueCreated", "IssueUpdated", "IssueStatusChanged"],
+			"pr_events": [
+				"PullRequestCreated",
+				"PullRequestUpdated",
+				"PullRequestMerged"
+			],
+			"comment_events": ["CommentCreated", "CommentUpdated", "CommentDeleted"],
+			"reaction_events": ["ReactionAdded", "ReactionRemoved"],
+			"relationship_events": [
+				"RepositoryForked",
+				"RepositoryStarred",
+				"RepositoryUnstarred"
+			]
+		},
+		"dependencies": {
+			"core_entities": ["UserRepository", "RepositoryRepository"],
+			"utilities": [
+				"SequentialNumberGenerator",
+				"CommentIdGenerator",
+				"KeyGenerator"
+			],
+			"validation": ["UserValidator", "RepositoryValidator"]
+		}
+	}
 }

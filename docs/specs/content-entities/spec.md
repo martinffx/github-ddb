@@ -50,7 +50,336 @@ As a backend developer, I want to implement Issue, PullRequest, Comment, and Rea
 
 ## Technical Implementation Details
 
+### DynamoDB Table Design
+
+#### Entity Relationship Diagram (ERD)
+
+The content entities build upon the core entities foundation, creating a comprehensive GitHub-like data model:
+
+```mermaid
+erDiagram
+    User ||--o{ Repository : owns
+    Organization ||--o{ Repository : owns
+    User ||--o{ Issue : creates
+    Organization ||--o{ Issue : creates
+    User ||--o{ PullRequest : creates
+    Organization ||--o{ PullRequest : creates
+    Repository ||--o{ Issue : contains
+    Repository ||--o{ PullRequest : contains
+    Issue ||--o{ IssueComment : contains
+    PullRequest ||--o{ PRComment : contains
+    User ||--o{ IssueComment : creates
+    User ||--o{ PRComment : creates
+    User ||--o{ Reaction : creates
+    Issue ||--o{ Reaction : receives
+    PullRequest ||--o{ Reaction : receives
+    IssueComment ||--o{ Reaction : receives
+    PRComment ||--o{ Reaction : receives
+    Repository ||--o{ Fork : source
+    Repository ||--o{ Fork : target
+    User ||--o{ Star : creates
+    Repository ||--o{ Star : receives
+    Repository ||--|| Counter : has
+
+    User {
+        string username PK
+        string email
+        string bio
+        string payment_plan_id
+    }
+
+    Organization {
+        string org_name PK
+        string description
+        string payment_plan_id
+    }
+
+    Repository {
+        string owner PK
+        string repo_name PK
+        string description
+        boolean is_private
+        string language
+    }
+
+    Issue {
+        string repo_owner PK
+        string repo_name PK
+        number issue_number SK
+        string title
+        string body
+        string status
+        string author FK
+        string[] assignees
+        string[] labels
+    }
+
+    PullRequest {
+        string repo_owner PK
+        string repo_name PK
+        number pr_number PK
+        string title
+        string body
+        string status
+        string author FK
+        string source_branch
+        string target_branch
+        string merge_commit_sha
+    }
+
+    IssueComment {
+        string repo_owner PK
+        string repo_name PK
+        number issue_number PK
+        string comment_id SK
+        string content
+        string author FK
+    }
+
+    PRComment {
+        string repo_owner PK
+        string repo_name PK
+        number pr_number PK
+        string comment_id SK
+        string content
+        string author FK
+        string file_path
+        number line_number
+    }
+
+    Reaction {
+        string target_type PK
+        string target_id PK
+        string username PK
+        string reaction_type
+    }
+
+    Fork {
+        string original_owner PK
+        string original_repo PK
+        string fork_owner SK
+        string fork_repo
+    }
+
+    Star {
+        string username PK
+        string repo_owner SK
+        string repo_name SK
+    }
+
+    Counter {
+        string repo_owner PK
+        string repo_name PK
+        number current_number
+    }
+```
+
+#### ASCII Entity Overview
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│      User       │     │  Organization   │     │   Repository    │
+│ ACCOUNT#{name}  │     │ ACCOUNT#{name}  │     │REPO#{owner}#{n} │
+└─────────┬───────┘     └─────────┬───────┘     └─────────┬───────┘
+          │                       │                       │
+          └───────────────────────┼───────────────────────┘
+                                  │ (owns)
+                                  │
+          ┌───────────────────────┼───────────────────────┐
+          │                       │                       │
+          │                       ▼                       │
+┌─────────▼───────┐     ┌─────────────────┐     ┌─────────▼───────┐
+│     Issue       │     │   PullRequest   │     │     Comment     │
+│REPO#{o}#{r}     │     │PR#{o}#{r}#{n}   │     │{TYPE}COMMENT#   │
+│ISSUE#{number}   │     │PR#{o}#{r}#{n}   │     │{parent}#{id}    │
+└─────────┬───────┘     └─────────┬───────┘     └─────────┬───────┘
+          │                       │                       │
+          │                       │                       │
+          └───────────────────────┼───────────────────────┘
+                                  │ (targets)
+                                  ▼
+                        ┌─────────────────┐
+                        │    Reaction     │
+                        │{TYPE}REACTION#  │
+                        │{target}#{user}  │
+                        └─────────────────┘
+
+┌─────────────────┐     ┌─────────────────┐
+│      Fork       │     │      Star       │
+│REPO#{orig}#{r}  │     │ACCOUNT#{user}   │
+│FORK#{owner}     │     │STAR#{o}#{repo}  │
+└─────────────────┘     └─────────────────┘
+```
+
+#### Single Table Schema
+
+| Entity | PK Pattern | SK Pattern | GSI1 | GSI2 | GSI3 | GSI4 |
+|--------|------------|------------|------|------|------|------|
+| **Core Entities** | | | | | | |
+| User | `ACCOUNT#{username}` | `ACCOUNT#{username}` | Same | - | Same | - |
+| Organization | `ACCOUNT#{org_name}` | `ACCOUNT#{org_name}` | Same | - | Same | - |
+| Repository | `REPO#{owner}#{repo}` | `REPO#{owner}#{repo}` | Same | Same | `ACCOUNT#{owner}` | - |
+| **Content Entities** | | | | | | |
+| Issue | `REPO#{owner}#{repo}` | `ISSUE#{number}` | - | - | - | Status queries |
+| PullRequest | `PR#{owner}#{repo}#{number}` | `PR#{owner}#{repo}#{number}` | Repo listing | - | - | - |
+| IssueComment | `ISSUECOMMENT#{owner}#{repo}#{issue}` | `ISSUECOMMENT#{id}` | - | - | - | - |
+| PRComment | `PRCOMMENT#{owner}#{repo}#{pr}` | `PRCOMMENT#{id}` | - | - | - | - |
+| Reaction | `{TYPE}REACTION#{target}#{user}` | `{TYPE}REACTION#{target}#{user}` | - | - | - | - |
+| Fork | `REPO#{orig_owner}#{orig_repo}` | `FORK#{fork_owner}` | - | Fork queries | - | - |
+| Star | `ACCOUNT#{username}` | `STAR#{owner}#{repo}` | - | - | - | - |
+
+#### Access Patterns
+
+| Pattern | Query Type | Index | PK | SK/Filter |
+|---------|------------|-------|----|---------  |
+| Get issue by number | GetItem | Main | `REPO#{owner}#{repo}` | `ISSUE#{number}` |
+| List repo issues | Query | Main | `REPO#{owner}#{repo}` | `begins_with(ISSUE#)` |
+| List open issues | Query | GSI4 | `REPO#{owner}#{repo}` | `begins_with(ISSUE#OPEN#)` |
+| List closed issues | Query | GSI4 | `REPO#{owner}#{repo}` | `begins_with(#ISSUE#CLOSED#)` |
+| Get PR by number | GetItem | Main | `PR#{owner}#{repo}#{number}` | `PR#{owner}#{repo}#{number}` |
+| List repo PRs | Query | GSI1 | `PR#{owner}#{repo}` | `begins_with(PR#)` |
+| List issue comments | Query | Main | `ISSUECOMMENT#{owner}#{repo}#{issue}` | `begins_with(ISSUECOMMENT#)` |
+| List PR comments | Query | Main | `PRCOMMENT#{owner}#{repo}#{pr}` | `begins_with(PRCOMMENT#)` |
+| Get user reaction | GetItem | Main | `{TYPE}REACTION#{target}#{user}` | `{TYPE}REACTION#{target}#{user}` |
+| List target reactions | Query | Main | Various | Filter on target prefix |
+| List repo forks | Query | GSI2 | `REPO#{owner}#{repo}` | `begins_with(FORK#)` |
+| List user stars | Query | Main | `ACCOUNT#{username}` | `begins_with(STAR#)` |
+
 ### Entity Key Patterns
+
+#### Entity Chart
+
+The following chart shows all content entities with their complete attribute schemas, key patterns, and relationships:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        ISSUE ENTITY                         │
+├─────────────────────────────────────────────────────────────┤
+│ PK: REPO#{owner}#{repo}                                     │
+│ SK: ISSUE#{number}                                          │
+│ GSI4PK: REPO#{owner}#{repo}                                 │
+│ GSI4SK: ISSUE#OPEN#{999999-number} | #ISSUE#CLOSED#{number} │
+├─────────────────────────────────────────────────────────────┤
+│ Attributes:                                                 │
+│ • issue_number: number (sequential, unique per repo)       │
+│ • title: string (required, max 255 chars)                  │
+│ • body: string (optional, markdown content)                │
+│ • status: 'open' | 'closed' (required, default: 'open')    │
+│ • author: string (required, references User/Organization)   │
+│ • assignees: string[] (optional, references Users)         │
+│ • labels: string[] (optional)                              │
+│ Note: created_at/updated_at handled by DynamoDB-Toolbox    │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                     PULLREQUEST ENTITY                      │
+├─────────────────────────────────────────────────────────────┤
+│ PK: PR#{owner}#{repo}#{number}                              │
+│ SK: PR#{owner}#{repo}#{number}                              │
+│ GSI1PK: PR#{owner}#{repo}                                   │
+│ GSI1SK: PR#{number}                                         │
+├─────────────────────────────────────────────────────────────┤
+│ Attributes:                                                 │
+│ • pr_number: number (sequential, shares with issues)       │
+│ • title: string (required, max 255 chars)                  │
+│ • body: string (optional, markdown content)                │
+│ • status: 'open' | 'closed' | 'merged' (default: 'open')   │
+│ • author: string (required, references User/Organization)   │
+│ • source_branch: string (required)                         │
+│ • target_branch: string (required, default: 'main')       │
+│ • merge_commit_sha: string (optional, set when merged)     │
+│ Note: created_at/updated_at handled by DynamoDB-Toolbox    │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                   ISSUECOMMENT ENTITY                       │
+├─────────────────────────────────────────────────────────────┤
+│ PK: ISSUECOMMENT#{owner}#{repo}#{issue_number}              │
+│ SK: ISSUECOMMENT#{comment_id}                               │
+├─────────────────────────────────────────────────────────────┤
+│ Attributes:                                                 │
+│ • comment_id: string (UUID, unique)                        │
+│ • issue_number: number (references parent issue)           │
+│ • content: string (required, markdown content)             │
+│ • author: string (required, references User/Organization)   │
+│ Note: created_at/updated_at handled by DynamoDB-Toolbox    │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                     PRCOMMENT ENTITY                        │
+├─────────────────────────────────────────────────────────────┤
+│ PK: PRCOMMENT#{owner}#{repo}#{pr_number}                    │
+│ SK: PRCOMMENT#{comment_id}                                  │
+├─────────────────────────────────────────────────────────────┤
+│ Attributes:                                                 │
+│ • comment_id: string (UUID, unique)                        │
+│ • pr_number: number (references parent PR)                 │
+│ • content: string (required, markdown content)             │
+│ • author: string (required, references User/Organization)   │
+│ • file_path: string (optional, for line comments)          │
+│ • line_number: number (optional, for line comments)        │
+│ Note: created_at/updated_at handled by DynamoDB-Toolbox    │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                      REACTION ENTITY                        │
+├─────────────────────────────────────────────────────────────┤
+│ PK: {TYPE}REACTION#{target_composite}#{username}            │
+│ SK: {TYPE}REACTION#{target_composite}#{username}            │
+│                                                             │
+│ Where TYPE: ISSUE | PR | ISSUECOMMENT | PRCOMMENT          │
+│ target_composite: {owner}#{repo}#{target_id}               │
+├─────────────────────────────────────────────────────────────┤
+│ Attributes:                                                 │
+│ • target_type: 'issue'|'pr'|'issue_comment'|'pr_comment'   │
+│ • target_id: string (issue/pr number or comment UUID)      │
+│ • reaction_type: '👍'|'👎'|'😄'|'🎉'|'😕'|'❤️'|'🚀'|'👀' │
+│ • username: string (required, references User)             │
+│ Note: created_at handled by DynamoDB-Toolbox               │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                        FORK ENTITY                          │
+├─────────────────────────────────────────────────────────────┤
+│ PK: REPO#{original_owner}#{original_repo}                   │
+│ SK: FORK#{fork_owner}                                       │
+│ GSI2PK: REPO#{original_owner}#{original_repo}               │
+│ GSI2SK: FORK#{fork_owner}                                   │
+├─────────────────────────────────────────────────────────────┤
+│ Attributes:                                                 │
+│ • original_owner: string (source repository owner)         │
+│ • original_repo: string (source repository name)           │
+│ • fork_owner: string (fork owner, references User/Org)     │
+│ • fork_repo: string (fork repository name)                 │
+│ Note: created_at handled by DynamoDB-Toolbox               │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                        STAR ENTITY                          │
+├─────────────────────────────────────────────────────────────┤
+│ PK: ACCOUNT#{username}                                      │
+│ SK: STAR#{repo_owner}#{repo_name}                           │
+├─────────────────────────────────────────────────────────────┤
+│ Attributes:                                                 │
+│ • username: string (required, references User)             │
+│ • repo_owner: string (repository owner)                    │
+│ • repo_name: string (repository name)                      │
+│ Note: created_at handled by DynamoDB-Toolbox               │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                      COUNTER ENTITY                         │
+├─────────────────────────────────────────────────────────────┤
+│ PK: COUNTER#{owner}#{repo}                                  │
+│ SK: COUNTER#{owner}#{repo}                                  │
+├─────────────────────────────────────────────────────────────┤
+│ Attributes:                                                 │
+│ • current_number: number (atomic counter, starts at 0)     │
+│ Note: updated_at handled by DynamoDB-Toolbox               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Legacy Key Pattern Documentation
 
 #### Issue Entity
 ```
@@ -60,7 +389,8 @@ GSI4PK: REPO#<owner>#<reponame>
 GSI4SK (open): ISSUE#OPEN#<999999_minus_number>
 GSI4SK (closed): #ISSUE#CLOSED#<zero_padded_number>
 
-Attributes: [issue_number, title, body, status, author, assignees, created_at, updated_at]
+Attributes: [issue_number, title, body, status, author, assignees]
+Note: created_at/updated_at handled automatically by DynamoDB-Toolbox
 ```
 
 #### PullRequest Entity
@@ -70,7 +400,8 @@ SK: PR#<owner>#<reponame>#<zero_padded_number>
 GSI1PK: PR#<owner>#<reponame>
 GSI1SK: PR#<zero_padded_number>
 
-Attributes: [pr_number, title, body, status, author, source_branch, target_branch, created_at, updated_at]
+Attributes: [pr_number, title, body, status, author, source_branch, target_branch, merge_commit_sha]
+Note: created_at/updated_at handled automatically by DynamoDB-Toolbox
 ```
 
 #### IssueComment Entity
@@ -78,7 +409,8 @@ Attributes: [pr_number, title, body, status, author, source_branch, target_branc
 PK: ISSUECOMMENT#<owner>#<reponame>#<issue_number>
 SK: ISSUECOMMENT#<comment_id>
 
-Attributes: [comment_id, issue_number, content, author, created_at, updated_at]
+Attributes: [comment_id, issue_number, content, author]
+Note: created_at/updated_at handled automatically by DynamoDB-Toolbox
 ```
 
 #### PRComment Entity
@@ -86,7 +418,8 @@ Attributes: [comment_id, issue_number, content, author, created_at, updated_at]
 PK: PRCOMMENT#<owner>#<reponame>#<pr_number>
 SK: PRCOMMENT#<comment_id>
 
-Attributes: [comment_id, pr_number, content, author, created_at, updated_at]
+Attributes: [comment_id, pr_number, content, author, file_path, line_number]
+Note: created_at/updated_at handled automatically by DynamoDB-Toolbox
 ```
 
 #### Reaction Entity
@@ -94,7 +427,8 @@ Attributes: [comment_id, pr_number, content, author, created_at, updated_at]
 PK: <target_type>REACTION#<owner>#<reponame>#<target_id>#<username>
 SK: <target_type>REACTION#<owner>#<reponame>#<target_id>#<username>
 
-Attributes: [target_type, target_id, reaction_type, username, created_at]
+Attributes: [target_type, target_id, reaction_type, username]
+Note: created_at handled automatically by DynamoDB-Toolbox
 ```
 
 #### Fork Entity
@@ -104,7 +438,8 @@ SK: FORK#<fork_owner>
 GSI2PK: REPO#<original_owner>#<original_repo>
 GSI2SK: FORK#<fork_owner>
 
-Attributes: [original_owner, original_repo, fork_owner, fork_repo, created_at]
+Attributes: [original_owner, original_repo, fork_owner, fork_repo]
+Note: created_at handled automatically by DynamoDB-Toolbox
 ```
 
 #### Star Entity
@@ -112,7 +447,8 @@ Attributes: [original_owner, original_repo, fork_owner, fork_repo, created_at]
 PK: ACCOUNT#<username>
 SK: STAR#<owner>#<reponame>
 
-Attributes: [username, repo_owner, repo_name, created_at]
+Attributes: [username, repo_owner, repo_name]
+Note: created_at handled automatically by DynamoDB-Toolbox
 ```
 
 ### Sequential Numbering Strategy

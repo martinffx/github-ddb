@@ -1,36 +1,36 @@
 {
-  "raw_user_story": "As a backend developer, I want to implement Issue, PullRequest, Comment, and Reaction entities with relationship management so that I can build the content layer of the GitHub data model on top of the core entities foundation",
-  "raw_criteria": [
-    "Issue entity supports CRUD operations with REPO#<owner>#<reponame> partition and ISSUE#<number> sort key",
-    "PullRequest entity supports CRUD operations with PR#<owner>#<reponame>#<number> keys",
-    "Comment entities (Issue/PR comments) support CRUD with proper parent relationships",
-    "Reaction system allows users to add/remove reactions to Issues, PRs, and Comments",
-    "Repository relationships (forks, stars) are properly managed with adjacency list patterns"
-  ],
-  "raw_rules": [
-    "Issue numbers must be sequential and unique per repository",
-    "PR numbers must be sequential and unique per repository", 
-    "Comments must belong to valid Issues or PRs",
-    "Reactions must reference valid targets (Issue/PR/Comment) and users",
-    "Fork relationships require valid source and target repositories",
-    "Star relationships require valid users and repositories"
-  ],
-  "raw_scope": {
-    "included": [
-      "Issue and PullRequest DynamoDB-Toolbox entities",
-      "IssueComment and PRComment entities",
-      "Reaction entity with polymorphic target support",
-      "Fork relationship management",
-      "Star relationship management (many-to-many)",
-      "Repository classes for all content entities",
-      "GSI4 usage for issue status queries"
-    ],
-    "excluded": [
-      "API endpoints (comes after entity layer)",
-      "Advanced PR features (reviews, approvals)",
-      "Issue/PR templates and automation",
-      "Notification system",
-      "Search and indexing"
-    ]
-  }
+	"raw_user_story": "As a backend developer, I want to implement Issue, PullRequest, Comment, and Reaction entities with relationship management so that I can build the content layer of the GitHub data model on top of the core entities foundation",
+	"raw_criteria": [
+		"Issue entity supports CRUD operations with REPO#<owner>#<reponame> partition and ISSUE#<number> sort key",
+		"PullRequest entity supports CRUD operations with PR#<owner>#<reponame>#<number> keys",
+		"Comment entities (Issue/PR comments) support CRUD with proper parent relationships",
+		"Reaction system allows users to add/remove reactions to Issues, PRs, and Comments",
+		"Repository relationships (forks, stars) are properly managed with adjacency list patterns"
+	],
+	"raw_rules": [
+		"Issue numbers must be sequential and unique per repository",
+		"PR numbers must be sequential and unique per repository",
+		"Comments must belong to valid Issues or PRs",
+		"Reactions must reference valid targets (Issue/PR/Comment) and users",
+		"Fork relationships require valid source and target repositories",
+		"Star relationships require valid users and repositories"
+	],
+	"raw_scope": {
+		"included": [
+			"Issue and PullRequest DynamoDB-Toolbox entities",
+			"IssueComment and PRComment entities",
+			"Reaction entity with polymorphic target support",
+			"Fork relationship management",
+			"Star relationship management (many-to-many)",
+			"Repository classes for all content entities",
+			"GSI4 usage for issue status queries"
+		],
+		"excluded": [
+			"API endpoints (comes after entity layer)",
+			"Advanced PR features (reviews, approvals)",
+			"Issue/PR templates and automation",
+			"Notification system",
+			"Search and indexing"
+		]
+	}
 }

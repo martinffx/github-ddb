@@ -2,37 +2,10 @@
 
 ## Feature Overview
 
-**Feature:** core-entities  
+**Feature:** core-entities
 **User Story:** As a backend developer, I want to set up core DynamoDB entities (User, Organization, Repository) with proper table configuration so that I can build the foundation for the GitHub data model implementation.
 
 This feature establishes the foundational data layer for our GitHub-style application using DynamoDB's single table design pattern. It implements the three core entity types that form the backbone of the system: Users, Organizations, and Repositories.
-
-## Acceptance Criteria
-
-### AC-1: DynamoDB Table Configuration
-**GIVEN** a new project setup  
-**WHEN** I configure the DynamoDB table  
-**THEN** it includes the main table with GSI1, GSI2, GSI3, and GSI4 indexes properly configured
-
-### AC-2: User Entity Implementation
-**GIVEN** User entity requirements  
-**WHEN** I create a User record  
-**THEN** it uses ACCOUNT#<username> as PK/SK and supports CRUD operations via repository methods
-
-### AC-3: Organization Entity Implementation
-**GIVEN** Organization entity requirements  
-**WHEN** I create an Organization record  
-**THEN** it uses ACCOUNT#<orgname> as PK/SK and supports CRUD operations via repository methods
-
-### AC-4: Repository Entity Implementation
-**GIVEN** Repository entity requirements  
-**WHEN** I create a Repository record  
-**THEN** it uses REPO#<owner>#<reponame> as PK/SK and supports CRUD operations via repository methods
-
-### AC-5: Single Table Design Compliance
-**GIVEN** any core entity  
-**WHEN** I perform operations  
-**THEN** all entities follow single table design patterns with proper key generation and validation
 
 ## Business Rules
 
@@ -51,95 +24,150 @@ GSI indexes must be properly configured to support the defined access patterns f
 ### BR-5: Sparse GSI Pattern
 GSI attributes are only populated for entities that use those specific indexes (sparse GSI pattern). This optimizes storage costs and query performance by only indexing relevant data.
 
+## Acceptance Criteria
+
+### AC-1: User Entity with ACCOUNT Pattern
+**GIVEN** I need to create a user
+**WHEN** I create a User entity
+**THEN** it uses `ACCOUNT#{username}` as PK and SK with global uniqueness enforcement
+
+### AC-2: Organization Entity with ACCOUNT Pattern
+**GIVEN** I need to create an organization
+**WHEN** I create an Organization entity
+**THEN** it uses `ACCOUNT#{org_name}` as PK and SK with global uniqueness enforcement
+
+### AC-3: Repository Entity with REPO Pattern
+**GIVEN** I need to create a repository
+**WHEN** I create a Repository entity
+**THEN** it uses `REPO#{owner}#{repo_name}` as PK and SK with owner-scoped uniqueness
+
+### AC-4: GSI3 Repository Listing by Owner
+**GIVEN** a user or organization owns multiple repositories
+**WHEN** I query repositories by owner
+**THEN** GSI3 enables efficient querying with `ACCOUNT#{owner}` as GSI3PK
+
+### AC-5: Global Account Name Collision Prevention
+**GIVEN** a username or organization name already exists
+**WHEN** I attempt to create an entity with the same name
+**THEN** DynamoDB conditional check prevents creation due to ACCOUNT# prefix collision
+
 ## Technical Implementation Details
 
 ### DynamoDB Table Design
 
-**Main Table:** GitHubTable
-- **Partition Key:** PK (String)
-- **Sort Key:** SK (String)
+#### Entity Relationship Diagram (ERD)
 
-**Global Secondary Indexes:**
+The core entities form the foundation of the GitHub-like data model:
 
-#### GSI1 - Account and PR Queries
-- **Partition Key:** GSI1PK (String)
-- **Sort Key:** GSI1SK (String)
-- **Purpose:** Account queries, PR lists by repo
+```mermaid
+erDiagram
+    User ||--o{ Repository : owns
+    Organization ||--o{ Repository : owns
 
-#### GSI2 - Repository Lookup
-- **Partition Key:** GSI2PK (String)
-- **Sort Key:** GSI2SK (String)
-- **Purpose:** Repo lookup, fork relationships
+    User {
+        string username PK
+        string email
+        string bio
+        string payment_plan_id
+    }
 
-#### GSI3 - Account-Based Queries
-- **Partition Key:** GSI3PK (String)
-- **Sort Key:** GSI3SK (String)
-- **Purpose:** Recent repos by account, user/org lookup
+    Organization {
+        string org_name PK
+        string description
+        string payment_plan_id
+    }
 
-#### GSI4 - Repository Metadata
-- **Partition Key:** GSI4PK (String)
-- **Sort Key:** GSI4SK (String)
-- **Purpose:** Repo metadata, issue status queries
+    Repository {
+        string owner PK
+        string repo_name PK
+        string description
+        boolean is_private
+        string language
+    }
+```
+
+#### Single Table Schema
+
+| Entity | PK Pattern | SK Pattern | GSI1 | GSI2 | GSI3PK | GSI3SK |
+|--------|------------|------------|------|------|--------|---------|
+| User | `ACCOUNT#{username}` | `ACCOUNT#{username}` | Same as PK/SK | - | Same as PK | Same as SK |
+| Organization | `ACCOUNT#{org_name}` | `ACCOUNT#{org_name}` | Same as PK/SK | - | Same as PK | Same as SK |
+| Repository | `REPO#{owner}#{repo_name}` | `REPO#{owner}#{repo_name}` | Same as PK/SK | Same as PK/SK | `ACCOUNT#{owner}` | `#{updated_at}` |
+
+#### Access Patterns
+
+| Pattern | Query Type | Index | PK | SK/Filter |
+|---------|------------|-------|----|---------  |
+| Get user by username | GetItem | Main | `ACCOUNT#{username}` | `ACCOUNT#{username}` |
+| Get organization by name | GetItem | Main | `ACCOUNT#{org_name}` | `ACCOUNT#{org_name}` |
+| Get repository by owner and name | GetItem | Main | `REPO#{owner}#{repo_name}` | `REPO#{owner}#{repo_name}` |
+| List repositories by owner | Query | GSI3 | `ACCOUNT#{owner}` | `begins_with(#)` |
+| List all users | Scan | Main | - | Filter PK `begins_with(ACCOUNT#)` and no repo pattern |
+| List all organizations | Scan | Main | - | Filter PK `begins_with(ACCOUNT#)` and no repo pattern |
 
 ### Entity Key Patterns
 
-#### User Entity
-```
-PK: ACCOUNT#<username>
-SK: ACCOUNT#<username>
-GSI1PK: ACCOUNT#<username>
-GSI1SK: ACCOUNT#<username>
-GSI3PK: ACCOUNT#<username>
-GSI3SK: ACCOUNT#<username>
-```
+#### Entity Chart
 
-#### Organization Entity
+The following chart shows all core entities with their complete attribute schemas and key patterns:
+
 ```
-PK: ACCOUNT#<orgname>
-SK: ACCOUNT#<orgname>
-GSI1PK: ACCOUNT#<orgname>
-GSI1SK: ACCOUNT#<orgname>
-GSI3PK: ACCOUNT#<orgname>
-GSI3SK: ACCOUNT#<orgname>
+┌─────────────────────────────────────────────────────────────┐
+│                        USER ENTITY                          │
+├─────────────────────────────────────────────────────────────┤
+│ PK: ACCOUNT#{username}                                      │
+│ SK: ACCOUNT#{username}                                      │
+│ GSI1PK: ACCOUNT#{username}                                  │
+│ GSI1SK: ACCOUNT#{username}                                  │
+│ GSI3PK: ACCOUNT#{username}                                  │
+│ GSI3SK: ACCOUNT#{username}                                  │
+├─────────────────────────────────────────────────────────────┤
+│ Attributes:                                                 │
+│ • username: string (required, unique globally)             │
+│ • email: string (required, valid email format)             │
+│ • bio: string (optional, user description)                 │
+│ • payment_plan_id: string (optional, plan reference)       │
+│ Note: created_at/updated_at handled by DynamoDB-Toolbox    │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                    ORGANIZATION ENTITY                      │
+├─────────────────────────────────────────────────────────────┤
+│ PK: ACCOUNT#{org_name}                                      │
+│ SK: ACCOUNT#{org_name}                                      │
+│ GSI1PK: ACCOUNT#{org_name}                                  │
+│ GSI1SK: ACCOUNT#{org_name}                                  │
+│ GSI3PK: ACCOUNT#{org_name}                                  │
+│ GSI3SK: ACCOUNT#{org_name}                                  │
+├─────────────────────────────────────────────────────────────┤
+│ Attributes:                                                 │
+│ • org_name: string (required, unique globally)             │
+│ • description: string (optional, organization description) │
+│ • payment_plan_id: string (optional, plan reference)       │
+│ Note: created_at/updated_at handled by DynamoDB-Toolbox    │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                     REPOSITORY ENTITY                       │
+├─────────────────────────────────────────────────────────────┤
+│ PK: REPO#{owner}#{repo_name}                                │
+│ SK: REPO#{owner}#{repo_name}                                │
+│ GSI1PK: REPO#{owner}#{repo_name}                            │
+│ GSI1SK: REPO#{owner}#{repo_name}                            │
+│ GSI2PK: REPO#{owner}#{repo_name}                            │
+│ GSI2SK: REPO#{owner}#{repo_name}                            │
+│ GSI3PK: ACCOUNT#{owner}                                     │
+│ GSI3SK: #{updated_at}                                       │
+├─────────────────────────────────────────────────────────────┤
+│ Attributes:                                                 │
+│ • owner: string (required, references User/Organization)    │
+│ • repo_name: string (required, unique per owner)           │
+│ • description: string (optional, repository description)   │
+│ • is_private: boolean (required, default: false)           │
+│ • language: string (optional, primary programming language)│
+│ Note: created_at/updated_at handled by DynamoDB-Toolbox    │
+└─────────────────────────────────────────────────────────────┘
 ```
-
-#### Repository Entity
-```
-PK: REPO#<owner>#<reponame>
-SK: REPO#<owner>#<reponame>
-GSI1PK: REPO#<owner>#<reponame>
-GSI1SK: REPO#<owner>#<reponame>
-GSI2PK: REPO#<owner>#<reponame>
-GSI2SK: REPO#<owner>#<reponame>
-GSI3PK: ACCOUNT#<owner>
-GSI3SK: #<updated_at>
-```
-
-### Entity Attributes
-
-#### User Attributes
-- `username` - Unique identifier for the user
-- `email` - User's email address
-- `bio` - User's biographical information
-- `payment_plan_id` - Reference to payment plan
-- `created_at` - Timestamp of creation
-- `updated_at` - Timestamp of last update
-
-#### Organization Attributes
-- `org_name` - Unique identifier for the organization
-- `description` - Organization description
-- `payment_plan_id` - Reference to payment plan
-- `created_at` - Timestamp of creation
-- `updated_at` - Timestamp of last update
-
-#### Repository Attributes
-- `owner` - Repository owner (user or organization)
-- `repo_name` - Repository name
-- `description` - Repository description
-- `is_private` - Privacy flag
-- `language` - Primary programming language
-- `created_at` - Timestamp of creation
-- `updated_at` - Timestamp of last update
 
 ### Entity Transformation Methods
 
@@ -147,16 +175,14 @@ All entities implement the following transformation methods:
 - **`fromRequest()`** - Convert API input to entity format
 - **`toRecord()`** - Convert to DynamoDB record format
 - **`toResponse()`** - Convert to API output format
-- **`validate()`** - Input validation and business rules
 
 ### Implementation Sequence
 
 1. **DynamoDB table and GSI configuration** - Set up the foundational table structure
 2. **DynamoDB-Toolbox schema definitions** - Define the type-safe schemas
-3. **Key generation and validation utilities** - Create helper functions for key management
-4. **Core entity record definitions** - Implement User, Organization, Repository entities
-5. **Repository classes with CRUD operations** - Build the data access layer
-6. **Test setup with DynamoDB Local and data factories** - Establish testing infrastructure
+3. **Core entity record definitions** - Implement User, Organization, Repository entities
+4. **Repository classes with CRUD operations** - Build the data access layer
+5. **Test setup with DynamoDB Local in Docker** - Establish testing infrastructure
 
 ## Scope
 
@@ -183,7 +209,7 @@ All entities implement the following transformation methods:
 
 ## Dependencies and Alignment
 
-**Dependencies:** None - This is the foundational feature  
+**Dependencies:** None - This is the foundational feature
 **Aligns With:** product_vision
 
 This feature serves as the foundation for all subsequent development and must be completed before any other features can be implemented.

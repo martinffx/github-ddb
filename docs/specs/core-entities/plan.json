@@ -1,344 +1,434 @@
 {
-  "tasks": {
-    "phase1": {
-      "task1_1": {
-        "id": "dependencies-config",
-        "title": "Project Dependencies and Configuration",
-        "effort": "small",
-        "hours": 1,
-        "deliverables": [
-          "Install and configure dependencies: dynamodb-toolbox, @aws-sdk/client-dynamodb, @aws-sdk/lib-dynamodb",
-          "Install dev dependencies: @types/jest, @types/node", 
-          "Configure TypeScript for DynamoDB-Toolbox compatibility"
-        ],
-        "acceptance_criteria": [
-          "All packages installed and versions locked",
-          "TypeScript compiles without errors", 
-          "Package.json includes all required dependencies"
-        ],
-        "dependencies": []
-      },
-      "task1_2": {
-        "id": "dynamodb-docker-setup",
-        "title": "DynamoDB Local Docker Test Setup", 
-        "effort": "small",
-        "hours": 2,
-        "deliverables": [
-          "Docker Compose configuration for DynamoDB Local",
-          "Jest configuration with Docker DynamoDB integration",
-          "Test setup utilities for table creation/destruction",
-          "Environment configuration for local vs AWS"
-        ],
-        "acceptance_criteria": [
-          "Docker Compose starts/stops DynamoDB Local with test suite",
-          "Test tables created with proper schema (PK, SK, GSI1-GSI3)",
-          "Connection configuration switches between local/AWS based on NODE_ENV",
-          "Tests can connect to dockerized DynamoDB instance",
-          "Docker health checks ensure DynamoDB is ready before tests"
-        ],
-        "dependencies": ["task1_1"],
-        "docker_config": {
-          "service": "dynamodb-local",
-          "image": "amazon/dynamodb-local",
-          "ports": ["8000:8000"],
-          "command": ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
-        }
-      },
-      "task1_3": {
-        "id": "table-config-setup", 
-        "title": "Table Configuration and Setup",
-        "effort": "small",
-        "hours": 2,
-        "deliverables": [
-          "GitHubTable configuration with DynamoDB-Toolbox",
-          "Table schema with all GSIs (GSI1, GSI2, GSI3)",
-          "Connection factory for test/production environments"
-        ],
-        "acceptance_criteria": [
-          "Table configured with correct partition/sort keys",
-          "All 3 GSIs configured with proper projection", 
-          "Factory pattern for environment-specific clients",
-          "Table creation script for local development"
-        ],
-        "dependencies": ["task1_2"]
-      }
+  "phases": {
+    "infrastructure_fixes": {
+      "name": "Infrastructure Fixes",
+      "description": "Critical infrastructure fixes required before any domain development",
+      "dependencies": [],
+      "priority": "CRITICAL",
+      "tasks": [
+        "fix_test_infrastructure",
+        "fix_schema_timestamp_bug",
+        "fix_user_entity_bugs",
+        "fix_repository_imports",
+        "create_shared_utilities"
+      ]
     },
-    "phase2": {
-      "task2_1": {
-        "id": "user-record-entity",
-        "title": "UserRecord Entity with Tests",
-        "effort": "medium", 
-        "hours": 3,
-        "deliverables": [
-          "UserRecord entity definition with DynamoDB-Toolbox",
-          "Complete schema with validation rules",
-          "Unit tests for entity validation and key generation",
-          "Test data factory for UserRecord"
-        ],
-        "acceptance_criteria": [
-          "UserRecord follows design schema exactly",
-          "Key generation (PK, SK, GSI1PK/SK, GSI3PK/SK) works correctly",
-          "Validation rules enforce username/email formats",
-          "Default timestamp generation works",
-          "Comprehensive test coverage (>90%)"
-        ],
-        "dependencies": ["task1_3"]
-      },
-      "task2_2": {
-        "id": "organization-record-entity",
-        "title": "OrganizationRecord Entity with Tests",
-        "effort": "medium",
-        "hours": 3, 
-        "deliverables": [
-          "OrganizationRecord entity definition",
-          "Schema with validation for org_name format",
-          "Unit tests for validation and key generation", 
-          "Test data factory for OrganizationRecord"
-        ],
-        "acceptance_criteria": [
-          "OrganizationRecord follows design schema exactly",
-          "Key generation matches UserRecord pattern (ACCOUNT# prefix)",
-          "Validation prevents invalid org_name characters",
-          "Test coverage includes edge cases and error conditions",
-          "Account name collision prevention verified"
-        ],
-        "dependencies": ["task1_3"]
-      },
-      "task2_3": {
-        "id": "repository-record-entity",
-        "title": "RepositoryRecord Entity with Tests", 
-        "effort": "medium",
-        "hours": 4,
-        "deliverables": [
-          "RepositoryRecord entity definition",
-          "Complex schema with all GSI key populations",
-          "Unit tests for multi-GSI key generation",
-          "Test data factory for RepositoryRecord"
-        ],
-        "acceptance_criteria": [
-          "RepositoryRecord follows design with all GSI keys",
-          "Composite key generation (REPO#owner#repo_name) works", 
-          "GSI3 keys properly support owner-based queries",
-          "Validation for owner/repo_name formats",
-          "Test coverage for all key generation patterns"
-        ],
-        "dependencies": ["task1_3"]
-      }
+    "user_domain_completion": {
+      "name": "User Domain Completion",
+      "description": "Complete the User domain by implementing service and router layers",
+      "dependencies": ["infrastructure_fixes"],
+      "priority": "HIGH",
+      "tasks": [
+        "implement_user_service",
+        "implement_user_routes"
+      ]
     },
-    "phase3": {
-      "task3_1": {
-        "id": "key-generator-utility",
-        "title": "KeyGenerator Utility with Tests",
-        "effort": "small",
-        "hours": 2,
-        "deliverables": [
-          "KeyGenerator class with static methods",
-          "Account key generation (users/orgs)",
-          "Repository key generation", 
-          "Validation and error handling"
-        ],
-        "acceptance_criteria": [
-          "Static methods for account(), repository(), timestampSortKey()",
-          "Input validation with descriptive error messages",
-          "Consistent key format generation",
-          "Edge case handling (empty strings, invalid characters)",
-          "100% test coverage on utility functions"
-        ],
-        "dependencies": []
-      },
-      "task3_2": {
-        "id": "error-handling-utilities",
-        "title": "Error Handling and Validation Utilities",
-        "effort": "small", 
-        "hours": 2,
-        "deliverables": [
-          "Custom error classes for domain validation",
-          "Input validation helpers",
-          "DynamoDB error mapping utilities"
-        ],
-        "acceptance_criteria": [
-          "Domain-specific error types (InvalidUsernameError, etc.)",
-          "Validation helpers for common patterns (email, username)",
-          "DynamoDB exception mapping to business errors", 
-          "Error messages provide clear user feedback"
-        ],
-        "dependencies": []
-      }
+    "organization_domain": {
+      "name": "Organization Domain",
+      "description": "Complete Organization domain with missing entity methods, repository fixes, service and routes",
+      "dependencies": ["infrastructure_fixes"],
+      "priority": "HIGH",
+      "tasks": [
+        "complete_organization_entity",
+        "fix_organization_repository",
+        "implement_organization_service",
+        "implement_organization_routes"
+      ]
     },
-    "phase4": {
-      "task4_1": {
-        "id": "user-repository-implementation", 
-        "title": "UserRepository Implementation with Tests",
-        "effort": "medium",
-        "hours": 4,
-        "deliverables": [
-          "UserRepository interface and implementation",
-          "Full CRUD operations (create, get, update, delete, getByUsername)",
-          "Integration tests with Docker DynamoDB Local",
-          "Error handling for duplicate users"
-        ],
-        "acceptance_criteria": [
-          "All interface methods implemented",
-          "Create operation prevents duplicate usernames",
-          "Update operation maintains updated_at timestamp",
-          "Get operations return null for missing users", 
-          "Integration tests verify DynamoDB interactions with Docker",
-          "Proper error handling for DynamoDB exceptions"
-        ],
-        "dependencies": ["task2_1", "task3_1", "task3_2"]
-      },
-      "task4_2": {
-        "id": "organization-repository-implementation",
-        "title": "OrganizationRepository Implementation with Tests",
-        "effort": "medium",
-        "hours": 4,
-        "deliverables": [
-          "OrganizationRepository interface and implementation", 
-          "CRUD operations matching UserRepository pattern",
-          "Integration tests with collision prevention",
-          "Consistent error handling approach"
-        ],
-        "acceptance_criteria": [
-          "Follows same patterns as UserRepository",
-          "Account name collision detection works",
-          "getByOrgName method aliases get() properly",
-          "Integration tests cover org-specific scenarios",
-          "Error handling consistent with UserRepository"
-        ],
-        "dependencies": ["task2_2", "task3_1", "task3_2"]
-      },
-      "task4_3": {
-        "id": "repository-repository-implementation",
-        "title": "RepositoryRepository Implementation with Tests",
-        "effort": "large",
-        "hours": 5,
-        "deliverables": [
-          "RepositoryRepository interface and implementation",
-          "Extended CRUD with listByOwner functionality", 
-          "GSI3 queries for owner-based repository listing",
-          "Complex integration tests"
-        ],
-        "acceptance_criteria": [
-          "All CRUD operations work with composite keys",
-          "listByOwner uses GSI3 efficiently (recent repos first)",
-          "getByOwnerAndName properly handles composite lookup",
-          "Integration tests verify GSI query patterns", 
-          "Performance considerations for list operations",
-          "Proper pagination support in listByOwner"
-        ],
-        "dependencies": ["task2_3", "task3_1", "task3_2"]
-      }
+    "repository_domain": {
+      "name": "Repository Domain",
+      "description": "Implement complete Repository domain from scratch following User domain patterns",
+      "dependencies": ["infrastructure_fixes"],
+      "priority": "HIGH",
+      "tasks": [
+        "implement_repository_entity",
+        "implement_repository_repository",
+        "implement_repository_service",
+        "implement_repository_routes"
+      ]
     },
-    "phase5": {
-      "task5_1": {
-        "id": "end-to-end-integration-tests",
-        "title": "End-to-End Integration Tests",
-        "effort": "medium",
-        "hours": 3,
-        "deliverables": [
-          "Cross-entity relationship tests",
-          "Full workflow scenarios (create user → create repo → list repos)",
-          "GSI query validation across entities",
-          "Performance and data consistency tests"
-        ],
-        "acceptance_criteria": [
-          "User/org can own repositories correctly", 
-          "Repository listings work across different owners",
-          "GSI3 queries return proper ordering",
-          "Account uniqueness enforced across users/orgs",
-          "Cleanup operations work properly"
-        ],
-        "dependencies": ["task4_1", "task4_2", "task4_3"]
-      },
-      "task5_2": {
-        "id": "test-data-management",
-        "title": "Test Data Management and Factories",
-        "effort": "small",
-        "hours": 2,
-        "deliverables": [
-          "Comprehensive TestDataFactory class",
-          "Database cleanup utilities", 
-          "Test isolation helpers",
-          "Performance test data generation"
-        ],
-        "acceptance_criteria": [
-          "Factory methods for all entity types",
-          "Configurable overrides for test scenarios",
-          "Automatic unique value generation",
-          "Database state isolation between tests",
-          "Bulk data generation for performance testing"
-        ],
-        "dependencies": ["task4_1", "task4_2", "task4_3"]
-      }
+    "core_access_patterns": {
+      "name": "Core Access Patterns",
+      "description": "Implement efficient query patterns for core entities using GSI3",
+      "dependencies": ["repository_domain"],
+      "priority": "HIGH",
+      "tasks": [
+        "implement_gsi3_repo_queries",
+        "optimize_core_query_patterns"
+      ]
     },
-    "phase6": {
-      "task6_1": {
-        "id": "implementation-documentation",
-        "title": "Implementation Documentation", 
-        "effort": "small",
-        "hours": 2,
-        "deliverables": [
-          "Updated README with usage examples",
-          "API documentation for repository classes",
-          "Development setup instructions with Docker",
-          "Performance characteristics documentation"
-        ],
-        "acceptance_criteria": [
-          "Clear usage examples for each repository",
-          "Docker setup instructions for new developers",
-          "Performance guidelines and limitations", 
-          "Troubleshooting common Docker/DynamoDB issues"
-        ],
-        "dependencies": ["task5_1", "task5_2"]
-      }
+    "domain_integration": {
+      "name": "Domain Integration",
+      "description": "Implement cross-domain business logic and integration tests for core entities",
+      "dependencies": ["user_domain_completion", "organization_domain", "repository_domain", "core_access_patterns"],
+      "priority": "MEDIUM",
+      "tasks": [
+        "implement_cross_domain_validation",
+        "add_integration_tests",
+        "implement_gsi3_queries"
+      ]
     }
   },
-  "summary": {
-    "total_estimated_hours": "32-40 hours",
-    "optimized_execution_time": "21 hours (with 3 parallel agents)",
-    "docker_requirements": {
-      "services": ["dynamodb-local"],
-      "benefits": [
-        "Consistent test environment across machines",
-        "No global npm package installation required", 
-        "Easy CI/CD integration",
-        "Isolated test database per container"
+  "tasks": {
+    "fix_test_infrastructure": {
+      "phase": "infrastructure_fixes",
+      "order": 1,
+      "description": "Fix Jest test configuration to enable test execution",
+      "priority": "CRITICAL",
+      "tdd_steps": [
+        "create_test_stub",
+        "verify_test_execution",
+        "fix_configuration"
+      ],
+      "acceptance_criteria": [
+        "Jest can run all test files without import errors",
+        "Test infrastructure can find and execute all test files",
+        "DynamoDB Local test utilities work properly"
+      ]
+    },
+    "fix_schema_timestamp_bug": {
+      "phase": "infrastructure_fixes",
+      "order": 2,
+      "description": "Fix GSI3SK timestamp generation bug in RepoRecord schema",
+      "priority": "CRITICAL",
+      "tdd_steps": [
+        "write_timestamp_test",
+        "fix_schema_implementation",
+        "verify_unique_timestamps"
+      ],
+      "acceptance_criteria": [
+        "GSI3SK generates unique timestamps at record creation time",
+        "Multiple repository records have different GSI3SK values",
+        "Temporal queries work correctly with GSI3"
+      ]
+    },
+    "fix_user_entity_bugs": {
+      "phase": "infrastructure_fixes",
+      "order": 3,
+      "description": "Fix critical date handling bugs in UserEntity.updateUser method",
+      "priority": "CRITICAL",
+      "tdd_steps": [
+        "write_update_date_tests",
+        "fix_date_preservation",
+        "verify_data_integrity"
+      ],
+      "acceptance_criteria": [
+        "updateUser preserves original created date",
+        "updateUser updates modified date to current time",
+        "No data corruption in update operations"
+      ]
+    },
+    "fix_repository_imports": {
+      "phase": "infrastructure_fixes",
+      "order": 4,
+      "description": "Fix import errors in repository classes preventing functionality",
+      "priority": "CRITICAL",
+      "tdd_steps": [
+        "write_import_tests",
+        "fix_import_statements",
+        "verify_functionality"
+      ],
+      "acceptance_criteria": [
+        "UserRepository imports ScanCommand from lib-dynamodb",
+        "All repository operations execute without import errors",
+        "Pagination functionality works properly"
+      ]
+    },
+    "create_shared_utilities": {
+      "phase": "infrastructure_fixes",
+      "order": 5,
+      "description": "Create shared validation and error handling utilities",
+      "priority": "HIGH",
+      "tdd_steps": [
+        "write_utility_tests",
+        "implement_validation_helpers",
+        "create_error_patterns"
+      ],
+      "acceptance_criteria": [
+        "Consistent input validation across all domains",
+        "Standardized error handling patterns",
+        "Reusable transformation helpers"
+      ]
+    },
+    "implement_user_service": {
+      "phase": "user_domain_completion",
+      "order": 1,
+      "description": "Implement UserService business logic layer",
+      "priority": "HIGH",
+      "tdd_steps": [
+        "write_service_interface_test",
+        "implement_business_logic",
+        "add_validation_and_errors"
+      ],
+      "acceptance_criteria": [
+        "UserService orchestrates repository operations",
+        "Business validation rules implemented",
+        "Error handling follows established patterns"
+      ]
+    },
+    "implement_user_routes": {
+      "phase": "user_domain_completion",
+      "order": 2,
+      "description": "Implement UserRoutes API endpoints",
+      "priority": "HIGH",
+      "tdd_steps": [
+        "write_route_tests",
+        "implement_http_handlers",
+        "add_request_validation"
+      ],
+      "acceptance_criteria": [
+        "CRUD operations available via REST API",
+        "Request/response validation implemented",
+        "HTTP status codes follow REST conventions"
+      ]
+    },
+    "complete_organization_entity": {
+      "phase": "organization_domain",
+      "order": 1,
+      "description": "Add missing updateOrganization method to OrganizationEntity",
+      "priority": "HIGH",
+      "tdd_steps": [
+        "write_update_method_tests",
+        "implement_update_organization",
+        "verify_immutable_pattern"
+      ],
+      "acceptance_criteria": [
+        "updateOrganization method follows UserEntity pattern",
+        "Immutable update pattern maintained",
+        "Date handling works correctly"
+      ]
+    },
+    "fix_organization_repository": {
+      "phase": "organization_domain",
+      "order": 2,
+      "description": "Fix OrganizationRepository scan patterns and complete CRUD operations",
+      "priority": "HIGH",
+      "tdd_steps": [
+        "write_repository_tests",
+        "fix_scan_implementation",
+        "complete_crud_operations"
+      ],
+      "acceptance_criteria": [
+        "listOrgs uses ScanCommand instead of QueryCommand.scan",
+        "All CRUD operations follow UserRepository pattern",
+        "Error handling matches established patterns"
+      ]
+    },
+    "implement_organization_service": {
+      "phase": "organization_domain",
+      "order": 3,
+      "description": "Implement OrganizationService business logic layer",
+      "priority": "HIGH",
+      "tdd_steps": [
+        "write_service_tests",
+        "implement_business_logic",
+        "add_cross_domain_validation"
+      ],
+      "acceptance_criteria": [
+        "OrganizationService orchestrates repository operations",
+        "Business rules for organization management",
+        "Integration with user ownership validation"
+      ]
+    },
+    "implement_organization_routes": {
+      "phase": "organization_domain",
+      "order": 4,
+      "description": "Implement OrganizationRoutes API endpoints",
+      "priority": "HIGH",
+      "tdd_steps": [
+        "write_route_tests",
+        "implement_http_handlers",
+        "add_auth_validation"
+      ],
+      "acceptance_criteria": [
+        "Organization CRUD operations via REST API",
+        "Organization ownership validation",
+        "Consistent API patterns with User routes"
+      ]
+    },
+    "implement_repository_entity": {
+      "phase": "repository_domain",
+      "order": 1,
+      "description": "Implement complete RepositoryEntity class with all transformation methods",
+      "priority": "HIGH",
+      "tdd_steps": [
+        "write_entity_tests",
+        "implement_transformation_methods",
+        "add_validation_logic"
+      ],
+      "acceptance_criteria": [
+        "All 5 transformation methods implemented (fromRequest, fromRecord, toRecord, toResponse, updateRepository)",
+        "Field mapping: repo_name → repoName, is_private → isPrivate",
+        "Follows UserEntity pattern exactly"
+      ]
+    },
+    "implement_repository_repository": {
+      "phase": "repository_domain",
+      "order": 2,
+      "description": "Implement complete RepositoryRepository class with CRUD and GSI operations",
+      "priority": "HIGH",
+      "tdd_steps": [
+        "write_repository_tests",
+        "implement_crud_operations",
+        "add_gsi3_queries"
+      ],
+      "acceptance_criteria": [
+        "Full CRUD operations following UserRepository pattern",
+        "GSI3 query methods for repository-by-owner patterns",
+        "listReposByOwner method using GSI3"
+      ]
+    },
+    "implement_repository_service": {
+      "phase": "repository_domain",
+      "order": 3,
+      "description": "Implement RepositoryService business logic layer",
+      "priority": "HIGH",
+      "tdd_steps": [
+        "write_service_tests",
+        "implement_business_logic",
+        "add_ownership_validation"
+      ],
+      "acceptance_criteria": [
+        "RepositoryService orchestrates repository operations",
+        "Repository ownership validation",
+        "Integration with organization/user domains"
+      ]
+    },
+    "implement_repository_routes": {
+      "phase": "repository_domain",
+      "order": 4,
+      "description": "Implement RepositoryRoutes API endpoints",
+      "priority": "HIGH",
+      "tdd_steps": [
+        "write_route_tests",
+        "implement_http_handlers",
+        "add_ownership_auth"
+      ],
+      "acceptance_criteria": [
+        "Repository CRUD operations via REST API",
+        "Repository listing by owner via GSI3",
+        "Ownership authorization for repository operations"
+      ]
+    },
+    "implement_gsi3_repo_queries": {
+      "phase": "core_access_patterns",
+      "order": 1,
+      "description": "Implement GSI3 repository-by-owner query patterns",
+      "priority": "HIGH",
+      "tdd_steps": [
+        "write_gsi3_query_tests",
+        "implement_repo_by_owner_queries",
+        "add_temporal_sorting"
+      ],
+      "acceptance_criteria": [
+        "Query GSI3PK=ACCOUNT#{owner}, GSI3SK begins_with '#' works",
+        "Repository listing by user or organization with pagination",
+        "Recent repositories sorted by updated_at timestamp"
+      ]
+    },
+    "optimize_core_query_patterns": {
+      "phase": "core_access_patterns",
+      "order": 2,
+      "description": "Optimize and benchmark core entity query patterns",
+      "priority": "HIGH",
+      "tdd_steps": [
+        "write_performance_tests",
+        "benchmark_core_queries",
+        "optimize_scan_operations"
+      ],
+      "acceptance_criteria": [
+        "Core entity operations meet performance benchmarks",
+        "GSI3 queries optimized for cost and speed",
+        "Repository-by-owner queries perform efficiently"
+      ]
+    },
+    "implement_cross_domain_validation": {
+      "phase": "domain_integration",
+      "order": 1,
+      "description": "Implement business rules that span multiple domains",
+      "priority": "MEDIUM",
+      "tdd_steps": [
+        "write_integration_tests",
+        "implement_cross_domain_rules",
+        "add_consistency_checks"
+      ],
+      "acceptance_criteria": [
+        "Repository ownership validation across user/org domains",
+        "Organization membership validation",
+        "Data consistency across domain boundaries"
+      ]
+    },
+    "add_integration_tests": {
+      "phase": "domain_integration",
+      "order": 2,
+      "description": "Add comprehensive integration tests for cross-domain scenarios",
+      "priority": "MEDIUM",
+      "tdd_steps": [
+        "write_integration_test_suite",
+        "test_cross_domain_flows",
+        "verify_data_consistency"
+      ],
+      "acceptance_criteria": [
+        "End-to-end tests for complete workflows",
+        "Cross-domain data consistency validation",
+        "GSI query integration tests"
+      ]
+    },
+    "implement_gsi3_queries": {
+      "phase": "domain_integration",
+      "order": 3,
+      "description": "Implement and test GSI3 repository-by-owner query patterns",
+      "priority": "MEDIUM",
+      "tdd_steps": [
+        "write_gsi3_tests",
+        "implement_query_methods",
+        "optimize_performance"
+      ],
+      "acceptance_criteria": [
+        "Efficient repository listing by owner using GSI3",
+        "Recent repositories sorted by updated_at",
+        "Pagination support for repository listings"
       ]
     }
   },
   "execution_strategy": {
-    "critical_path": ["task1_1", "task1_2", "task1_3"],
-    "parallel_opportunities": {
-      "utilities": ["task3_1", "task3_2"],
-      "entities": ["task2_1", "task2_2", "task2_3"], 
-      "repositories": ["task4_1", "task4_2", "task4_3"]
+    "parallel_execution": {
+      "after_infrastructure_fixes": [
+        "user_domain_completion",
+        "organization_domain",
+        "repository_domain"
+      ],
+      "description": "User, Organization, and Repository domains can be developed in parallel after infrastructure fixes are complete"
     },
-    "sprints": {
-      "sprint1_foundation": {
-        "duration": "5 hours",
-        "tasks": ["task1_1", "task1_2", "task1_3", "task3_1", "task3_2"],
-        "agents": 3,
-        "focus": "Infrastructure and utilities"
-      },
-      "sprint2_entities": {
-        "duration": "4 hours", 
-        "tasks": ["task2_1", "task2_2", "task2_3"],
-        "agents": 3,
-        "focus": "DynamoDB-Toolbox entity records"
-      },
-      "sprint3_repositories": {
-        "duration": "5 hours",
-        "tasks": ["task4_1", "task4_2", "task4_3"], 
-        "agents": 3,
-        "focus": "Repository layer with integration tests"
-      },
-      "sprint4_integration": {
-        "duration": "7 hours",
-        "tasks": ["task5_1", "task5_2", "task6_1"],
-        "agents": 2,
-        "focus": "End-to-end testing and documentation"
-      }
+    "tdd_approach": {
+      "description": "Each task follows stub-driven TDD with 3 steps",
+      "pattern": [
+        "1. Write test/stub - Define interface and expected behavior",
+        "2. Implement - Write minimal code to pass tests",
+        "3. Refactor - Improve implementation while maintaining tests"
+      ]
     },
-    "next_action": "/spec:implement core-entities task1_1"
+    "quality_gates": {
+      "infrastructure_fixes": "All tests must run successfully before proceeding",
+      "domain_completion": "Each domain must have full CRUD operations with test coverage",
+      "integration": "Cross-domain scenarios must be tested and validated"
+    }
+  },
+  "success_metrics": {
+    "infrastructure_fixes": {
+      "test_execution": "100% of test files can run without errors",
+      "data_integrity": "No data corruption in entity update operations",
+      "schema_functionality": "GSI3 temporal queries work correctly"
+    },
+    "domain_completion": {
+      "pattern_consistency": "All domains follow identical Entity → Repository → Service → Router patterns",
+      "test_coverage": "100% test coverage for all CRUD operations",
+      "api_functionality": "All domains expose complete REST APIs"
+    },
+    "integration": {
+      "cross_domain_rules": "Business rules span domains correctly",
+      "data_consistency": "Cross-domain data remains consistent",
+      "performance": "GSI3 queries perform efficiently"
+    }
   }
 }
