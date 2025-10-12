@@ -1,156 +1,190 @@
-import { GetItemCommand, PutItemCommand } from "dynamodb-toolbox";
+import {
+	ConditionalCheckFailedException,
+	TransactionCanceledException,
+} from "@aws-sdk/client-dynamodb";
+import {
+	DeleteItemCommand,
+	GetItemCommand,
+	PutItemCommand,
+	QueryCommand,
+	DynamoDBToolboxError,
+	ConditionCheck,
+} from "dynamodb-toolbox";
+import { PutTransaction } from "dynamodb-toolbox/entity/actions/transactPut";
+import { execute } from "dynamodb-toolbox/entity/actions/transactWrite";
 import { RepositoryEntity } from "../services";
-import type { RepositoryRecord, GithubTable, RepoRecord } from "./schema";
 import type { PaginatedResponse } from "../shared";
 import {
-  ValidationError,
-  DuplicateEntityError,
-  EntityNotFoundError,
+	DuplicateEntityError,
+	EntityNotFoundError,
+	ValidationError,
 } from "../shared";
-
-type RepositoryId = {
-  owner: string;
-  repo_name: string;
-};
+import {
+	decodePageToken,
+	encodePageToken,
+	type GithubTable,
+	type RepoFormatted,
+	type RepoRecord,
+	type UserRecord,
+	type OrganizationRecord,
+} from "./schema";
+import type { RepositoryId } from "../services/entities/RepositoryEntity";
 
 type ListOptions = {
-  limit?: number;
-  cursor?: string;
+	limit?: number;
+	offset?: string;
 };
 
 export class RepoRepository {
-  private readonly table: GithubTable;
-  private readonly record: RepoRecord;
+	private readonly table: GithubTable;
+	private readonly record: RepoRecord;
+	private readonly userRecord: UserRecord;
 
-  constructor(table: GithubTable, record: RepositoryRecord) {
-    this.table = table;
-    this.record = record;
-  }
+	constructor(
+		table: GithubTable,
+		record: RepoRecord,
+		userRecord: UserRecord,
+		_orgRecord: OrganizationRecord,
+	) {
+		this.table = table;
+		this.record = record;
+		this.userRecord = userRecord;
+	}
 
-  async create(entity: RepositoryEntity): Promise<RepositoryEntity> {
-    try {
-      const result = await this.record
-        .build(PutItemCommand)
-        .item(entity.toRecord())
-        .conditions({
-          and: [
-            {attr: }
-          ]
-        })
-        .send();
+	async createRepo(repo: RepositoryEntity): Promise<RepositoryEntity> {
+		try {
+			// Build transaction to put repository with duplicate check
+			const putRepoTransaction = this.record
+				.build(PutTransaction)
+				.item(repo.toRecord())
+				.options({ condition: { attr: "PK", exists: false } });
 
-      return RepositoryEntity.fromRecord(result.Attributes);
-    } catch (error: any) {
-      if (error.name === "ConditionalCheckFailedException") {
-        throw new DuplicateEntityError(
-          "Repository",
-          ["owner", "repo_name"],
-          [repository.owner, repository.repo_name],
-        );
-      }
-      throw error;
-    }
-  }
+			// Build condition check to verify owner exists
+			// Try user first (can be either user or organization)
+			const ownerCheckTransaction = this.userRecord
+				.build(ConditionCheck)
+				.key({ username: repo.owner })
+				.condition({ attr: "PK", exists: true });
 
-  async get(id: RepositoryId): Promise<RepositoryEntity | null> {
-    const result = await this.repositoryRecord
-      .build(GetItemCommand)
-      .key({
-        owner: id.owner,
-        repo_name: id.repo_name,
-      })
-      .send();
+			// Execute both in a transaction
+			await execute(putRepoTransaction, ownerCheckTransaction);
 
-    return result.Item ? RepositoryEntity.fromRecord(result.Item) : null;
-  }
+			// If successful, fetch the created item
+			const result = await this.getRepo({
+				owner: repo.owner,
+				repo_name: repo.repoName,
+			});
 
-  async update(repository: RepositoryEntity): Promise<RepositoryEntity> {
-    // Validate entity first
-    repository.validate();
+			if (!result) {
+				throw new Error("Failed to retrieve created repository");
+			}
 
-    // Check if repository exists
-    const existing = await this.get({
-      owner: repository.owner,
-      repo_name: repository.repo_name,
-    });
+			return result;
+		} catch (error: unknown) {
+			if (
+				error instanceof TransactionCanceledException ||
+				error instanceof ConditionalCheckFailedException
+			) {
+				// Transaction failed - could be either duplicate repo or missing owner
+				// Check if it's a duplicate by trying to get the repo
+				const existing = await this.getRepo({
+					owner: repo.owner,
+					repo_name: repo.repoName,
+				});
 
-    if (!existing) {
-      throw new EntityNotFoundError(
-        "Repository",
-        ["owner", "repo_name"],
-        [repository.owner, repository.repo_name],
-      );
-    }
+				if (existing) {
+					throw new DuplicateEntityError(
+						"RepositoryEntity",
+						`REPO#${repo.owner}#${repo.repoName}`,
+					);
+				}
 
-    const repositoryInput = repository.toRecord();
-    const result = await this.repositoryRecord
-      .build()
-      .put(repositoryInput)
-      .condition("attribute_exists(PK)")
-      .send();
+				// If repo doesn't exist, owner must not exist
+				throw new ValidationError(
+					"owner",
+					`Owner '${repo.owner}' does not exist`,
+				);
+			}
+			if (error instanceof DynamoDBToolboxError) {
+				throw new ValidationError(error.path ?? "", error.message);
+			}
+			throw error;
+		}
+	}
 
-    return RepositoryEntity.fromRecord(result.Attributes);
-  }
+	async getRepo(id: RepositoryId): Promise<RepositoryEntity | undefined> {
+		const result = await this.record
+			.build(GetItemCommand)
+			.key({
+				owner: id.owner,
+				repo_name: id.repo_name,
+			})
+			.send();
 
-  async delete(id: RepositoryId): Promise<void> {
-    // Check if repository exists
-    const existing = await this.get(id);
+		return result.Item ? RepositoryEntity.fromRecord(result.Item) : undefined;
+	}
 
-    if (!existing) {
-      throw new EntityNotFoundError(
-        "Repository",
-        ["owner", "repo_name"],
-        [id.owner, id.repo_name],
-      );
-    }
+	async updateRepo(repo: RepositoryEntity): Promise<RepositoryEntity> {
+		try {
+			const result = await this.record
+				.build(PutItemCommand)
+				.item(repo.toRecord())
+				.options({ condition: { attr: "PK", exists: true } })
+				.send();
 
-    await this.repositoryRecord
-      .build()
-      .delete({
-        owner: id.owner,
-        repo_name: id.repo_name,
-      })
-      .send();
-  }
+			return RepositoryEntity.fromRecord(result.ToolboxItem);
+		} catch (error: unknown) {
+			if (error instanceof ConditionalCheckFailedException) {
+				throw new EntityNotFoundError(
+					"RepositoryEntity",
+					`REPO#${repo.owner}#${repo.repoName}`,
+				);
+			}
+			if (error instanceof DynamoDBToolboxError) {
+				throw new ValidationError(error.path ?? "", error.message);
+			}
+			throw error;
+		}
+	}
 
-  async listByOwner(
-    owner: string,
-    options: ListOptions = {},
-  ): Promise<PaginatedResponse<RepositoryEntity>> {
-    const { limit = 50, cursor } = options;
+	async deleteRepo(id: RepositoryId): Promise<void> {
+		await this.record
+			.build(DeleteItemCommand)
+			.key({
+				owner: id.owner,
+				repo_name: id.repo_name,
+			})
+			.send();
+	}
 
-    const queryCommand = this.repositoryRecord
-      .build()
-      .query()
-      .index("GSI3")
-      .key({
-        GSI3PK: `ACCOUNT#${owner}`,
-      })
-      .limit(limit)
-      .scanIndexForward(false); // Most recent first
+	async listByOwner(
+		owner: string,
+		options: ListOptions = {},
+	): Promise<PaginatedResponse<RepositoryEntity>> {
+		const { limit = 50, offset } = options;
 
-    if (cursor) {
-      queryCommand.startFrom(JSON.parse(cursor));
-    }
+		const result = await this.table
+			.build(QueryCommand)
+			.query({
+				partition: `ACCOUNT#${owner}`,
+				index: "GSI3",
+				range: { lt: "ACCOUNT#" }, // Only repositories (timestamps < "ACCOUNT#")
+			})
+			.options({
+				reverse: true,
+				exclusiveStartKey: decodePageToken(offset),
+				limit,
+			})
+			.send();
 
-    const result = await queryCommand.send();
+		const items =
+			result.Items?.map((item) =>
+				RepositoryEntity.fromRecord(item as RepoFormatted),
+			) || [];
 
-    const items =
-      result.Items?.map((item) => RepositoryEntity.fromRecord(item)) || [];
-
-    return {
-      items,
-      has_more: !!result.LastEvaluatedKey,
-      next_cursor: result.LastEvaluatedKey
-        ? JSON.stringify(result.LastEvaluatedKey)
-        : undefined,
-    };
-  }
-
-  async getByOwnerAndName(
-    owner: string,
-    repoName: string,
-  ): Promise<RepositoryEntity | null> {
-    return this.get({ owner, repo_name: repoName });
-  }
+		return {
+			items,
+			offset: encodePageToken(result.LastEvaluatedKey),
+		};
+	}
 }

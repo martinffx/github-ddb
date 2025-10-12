@@ -11,8 +11,7 @@ export interface BaseResponse {
  */
 export interface PaginatedResponse<T> {
 	items: T[];
-	next_cursor?: string;
-	has_more: boolean;
+	offset?: string;
 }
 
 /**

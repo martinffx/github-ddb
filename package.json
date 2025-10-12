@@ -5,10 +5,10 @@
 	"main": "index.js",
 	"scripts": {
 		"build": "tsc",
-		"dev": "tsx --watch src/index.ts",
-		"test": "jest",
-		"test:watch": "jest --watch",
-		"test:coverage": "jest --coverage",
+		"dev": "dotenvx run --env-file=.env -- tsx --watch src/index.ts",
+		"test": "dotenvx run --env-file=.test.env -- jest",
+		"test:watch": "dotenvx run --env-file=.test.env -- jest --watch",
+		"test:coverage": "dotenvx run --env-file=.test.env -- jest --coverage",
 		"format": "biome format --write",
 		"lint": "biome lint --write",
 		"types": "tsc --noEmit",
@@ -17,7 +17,7 @@
 	"keywords": [],
 	"author": "",
 	"license": "ISC",
-	"packageManager": "pnpm@10.15.1",
+	"packageManager": "pnpm@10.18.2",
 	"dependencies": {
 		"@aws-sdk/client-dynamodb": "3.658.1",
 		"@aws-sdk/lib-dynamodb": "3.658.1",
@@ -30,6 +30,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.2.0",
+		"@dotenvx/dotenvx": "^1.51.0",
 		"@types/jest": "^29.5.14",
 		"@types/luxon": "^3.7.1",
 		"@types/node": "^22.7.5",

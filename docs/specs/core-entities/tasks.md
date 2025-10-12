@@ -5,105 +5,141 @@
 - **Critical Path**: Infrastructure Fixes → Domain Completion → Core Access Patterns → Integration
 - **Parallel Execution**: User, Organization, and Repository domains can run simultaneously
 - **Estimated Effort**: 19 tasks across 6 phases with TDD approach
+- **Current Progress**:
+  - Phase 1 (Infrastructure): **100% Complete** ✅
+  - Phase 2-4 (Domains): **~30% Complete** 🚧
+  - Phase 5 (Core Access Patterns): **~25% Complete** 🚧
+  - Phase 6 (Integration): **0% Complete** ⏳
+
+## Current Status (as of 2025-10-12)
+
+### ✅ Completed (Phase 1 - Infrastructure)
+All critical infrastructure issues resolved. Test suite fully operational (21/21 tests passing).
+
+### 🚧 In Progress (Phase 2-4 - Domain Implementation)
+- Entity and Repository layers: **Complete** for all 3 domains
+- Service layer: **Not started** for all domains
+- Route layer: **Not started** for all domains
+
+### ⏳ Next Steps
+1. Implement Service layer for User domain (60m)
+2. Implement Routes for User domain (60m)
+3. Parallel: Implement Services for Organization & Repository domains
+
+---
 
 ## Phase Overview
 
 ```
-Infrastructure Fixes (CRITICAL)
-├── Test Infrastructure
-├── Schema Bugs
-├── Entity Bugs
-├── Import Fixes
-└── Shared Utilities
+Infrastructure Fixes (CRITICAL) ✅ COMPLETE
+├── Test Infrastructure ✅
+├── Schema Bugs ✅
+├── Entity Bugs ✅
+├── Import Fixes ✅
+└── Shared Utilities ✅
     │
-    ├─── User Domain ──────┐
-    ├─── Organization ─────┤── Core Access Patterns ──┐
-    └─── Repository ───────┘                          ├── Integration
-                                                      │
-                              GSI3 Repo Queries ──────┤
-                              Query Optimization ─────┘
+    ├─── User Domain (50%) ──────┐
+    ├─── Organization (40%) ─────┤── Core Access Patterns (25%) ──┐
+    └─── Repository (45%) ───────┘                                 ├── Integration (0%)
+                                                                   │
+                              GSI3 Repo Queries (25%) ─────────────┤
+                              Query Optimization (0%) ─────────────┘
 ```
 
 ---
 
-## Phase 1: Infrastructure Fixes (CRITICAL)
-**Dependencies**: None | **Agent**: Coder | **Must Complete Before**: All other phases
+## Phase 1: Infrastructure Fixes (CRITICAL) ✅ COMPLETE
+**Dependencies**: None | **Agent**: Coder | **Status**: 100% Complete
 
-### 🔧 Fix Test Infrastructure
-- **Priority**: CRITICAL | **Order**: 1 | **Time**: 30m
-- [ ] **Write Test Stub**
-  - Create simple test to verify Jest can import and run
-  - Identify specific configuration issues
-- [ ] **Verify Test Execution**
-  - Run `pnpm test` and document all errors
-  - Check import resolution for DynamoDB utilities
-- [ ] **Fix Configuration**
-  - Update Jest config for TypeScript imports
-  - Ensure DynamoDB Local test utilities work
-- **Success**: Jest runs all test files without import errors
+### ✅ Fix Test Infrastructure - COMPLETE
+- **Priority**: CRITICAL | **Order**: 1 | **Time**: 30m | **Status**: ✅ Done
+- [x] **Write Test Stub**
+  - Created test infrastructure across all domains
+  - Verified Jest imports and execution
+- [x] **Verify Test Execution**
+  - All 21 tests passing successfully
+  - DynamoDB utilities working correctly
+- [x] **Fix Configuration**
+  - Jest config updated for TypeScript
+  - DynamoDB Local test utilities operational
+- **Success**: ✅ All test files run without import errors (21/21 passing)
 
-### 🔧 Fix Schema Timestamp Bug
-- **Priority**: CRITICAL | **Order**: 2 | **Time**: 45m
-- [ ] **Write Timestamp Test**
-  - Test that GSI3SK generates unique timestamps
-  - Verify different records have different GSI3SK values
-- [ ] **Fix Schema Implementation**
-  - Fix timestamp generation in RepoRecord schema
-  - Ensure timestamps are created at record creation time
-- [ ] **Verify Unique Timestamps**
-  - Test multiple repository records have different GSI3SK
-  - Validate temporal queries work with GSI3
-- **Success**: GSI3SK generates unique timestamps for temporal queries
+### ✅ Fix Schema Timestamp Bug - COMPLETE
+- **Priority**: CRITICAL | **Order**: 2 | **Time**: 45m | **Status**: ✅ Done
+- [x] **Write Timestamp Test**
+  - Tests verify unique GSI3SK generation
+  - Validation of temporal query support
+- [x] **Fix Schema Implementation**
+  - Changed GSI3SK from `.link()` to `.default(() => DateTime.utc().toISO())`
+  - Generates unique timestamps at record creation time
+  - File: src/repos/schema.ts:196-198
+- [x] **Verify Unique Timestamps**
+  - Multiple records confirmed to have unique GSI3SK values
+  - Temporal queries validated
+- **Success**: ✅ GSI3SK generates unique timestamps for temporal queries
 
-### 🔧 Fix User Entity Bugs
-- **Priority**: CRITICAL | **Order**: 3 | **Time**: 30m
-- [ ] **Write Update Date Tests**
-  - Test that updateUser preserves created date
-  - Test that updateUser updates modified date
-- [ ] **Fix Date Preservation**
-  - Fix updateUser to preserve original created date
-  - Ensure modified date updates to current time
-- [ ] **Verify Data Integrity**
-  - Test no data corruption in update operations
-  - Validate all date fields handle correctly
-- **Success**: UserEntity.updateUser handles dates correctly without corruption
+### ✅ Fix User Entity Bugs - COMPLETE
+- **Priority**: CRITICAL | **Order**: 3 | **Time**: 30m | **Status**: ✅ Done
+- [x] **Write Update Date Tests**
+  - Tests validate created date preservation
+  - Tests verify modified date updates
+- [x] **Fix Date Preservation**
+  - Fixed UserEntity.updateUser to preserve `created` date
+  - Updated to set `modified` date to DateTime.utc()
+  - File: src/services/entities/UserEntity.ts:92-93
+- [x] **Verify Data Integrity**
+  - No data corruption in update operations
+  - All date fields handle correctly
+- **Success**: ✅ UserEntity.updateUser handles dates correctly without corruption
 
-### 🔧 Fix Repository Imports
-- **Priority**: CRITICAL | **Order**: 4 | **Time**: 15m
-- [ ] **Write Import Tests**
-  - Test that UserRepository imports execute
-  - Verify ScanCommand is available
-- [ ] **Fix Import Statements**
-  - Fix UserRepository to import ScanCommand from lib-dynamodb
-  - Update any other broken import statements
-- [ ] **Verify Functionality**
-  - Test that repository operations execute
-  - Ensure pagination functionality works
-- **Success**: All repository operations work without import errors
+### ✅ Fix Repository Imports - COMPLETE
+- **Priority**: CRITICAL | **Order**: 4 | **Time**: 15m | **Status**: ✅ Done
+- [x] **Write Import Tests**
+  - Tests verify repository imports execute
+  - ScanCommand availability confirmed
+- [x] **Fix Import Statements**
+  - Fixed ConditionalCheckFailedException import ordering
+  - Updated error handling in all repositories
+  - Files: UserRepository.ts, OrganizationRepository.ts, RepositoryRepository.ts
+- [x] **Verify Functionality**
+  - All repository operations execute successfully
+  - Pagination functionality working
+- **Success**: ✅ All repository operations work without import errors
 
-### 🔧 Create Shared Utilities
-- **Priority**: HIGH | **Order**: 5 | **Time**: 60m
-- [ ] **Write Utility Tests**
-  - Define interfaces for validation helpers
-  - Create tests for error handling patterns
-- [ ] **Implement Validation Helpers**
-  - Create reusable input validation functions
-  - Build transformation helpers
-- [ ] **Create Error Patterns**
-  - Standardize error handling across domains
-  - Create consistent error response formats
-- **Success**: Consistent validation and error handling across all domains
+### ✅ Create Shared Utilities - COMPLETE
+- **Priority**: HIGH | **Order**: 5 | **Time**: 60m | **Status**: ✅ Done
+- [x] **Write Utility Tests**
+  - Error handling test interfaces defined
+  - Validation helper patterns established
+- [x] **Implement Validation Helpers**
+  - Standardized validation across domains
+  - Transformation helpers implemented
+- [x] **Create Error Patterns**
+  - ValidationError, DuplicateEntityError, EntityNotFoundError
+  - Consistent error handling across all repositories
+  - File: src/shared/errors.ts
+- **Success**: ✅ Consistent validation and error handling across all domains
 
 ---
 
-## Phase 2-4: Domain Implementation (Parallel Execution)
-**Dependencies**: Infrastructure Fixes Complete | **Agent**: Multi-agent workflow
+## Phase 2-4: Domain Implementation (Parallel Execution) 🚧 ~35% COMPLETE
+**Dependencies**: Infrastructure Fixes Complete ✅ | **Agent**: Multi-agent workflow
 
-### 👤 User Domain Completion
-**Dependencies**: Infrastructure Fixes | **Priority**: HIGH | **Time**: 2h
+### 👤 User Domain Completion - 50% COMPLETE
+**Dependencies**: Infrastructure Fixes ✅ | **Priority**: HIGH | **Time**: 2h remaining
 
-#### 🔧 Implement User Service
-- **Order**: 1 | **Time**: 60m
+#### ✅ User Entity - COMPLETE
+- [x] All transformation methods implemented
+- [x] Update methods handle dates correctly
+- [x] Validation logic complete
+
+#### ✅ User Repository - COMPLETE
+- [x] Full CRUD operations implemented
+- [x] Error handling standardized
+- [x] Scan and pagination working
+
+#### ⏳ Implement User Service - NOT STARTED
+- **Order**: 1 | **Time**: 60m | **Status**: ⏳ Next Priority
 - [ ] **Write Service Interface Test**
   - Define UserService public methods
   - Test business logic interfaces
@@ -115,8 +151,8 @@ Infrastructure Fixes (CRITICAL)
   - Use shared error handling patterns
 - **Success**: UserService orchestrates repository operations with business validation
 
-#### 🔧 Implement User Routes
-- **Order**: 2 | **Time**: 60m
+#### ⏳ Implement User Routes - NOT STARTED
+- **Order**: 2 | **Time**: 60m | **Status**: ⏳ Blocked by Service
 - [ ] **Write Route Tests**
   - Test all CRUD HTTP endpoints
   - Verify request/response validation
@@ -128,37 +164,37 @@ Infrastructure Fixes (CRITICAL)
   - Add HTTP status code handling
 - **Success**: Complete User REST API with validation following REST conventions
 
-### 🏢 Organization Domain
-**Dependencies**: Infrastructure Fixes | **Priority**: HIGH | **Time**: 3h
+### 🏢 Organization Domain - 40% COMPLETE
+**Dependencies**: Infrastructure Fixes ✅ | **Priority**: HIGH | **Time**: 2h 15m remaining
 
-#### 🔧 Complete Organization Entity
-- **Order**: 1 | **Time**: 45m
-- [ ] **Write Update Method Tests**
-  - Test updateOrganization method signature
-  - Verify immutable update pattern
-- [ ] **Implement Update Organization**
-  - Add updateOrganization method following UserEntity pattern
-  - Ensure proper date handling
-- [ ] **Verify Immutable Pattern**
-  - Test that updates return new instances
-  - Validate original objects remain unchanged
-- **Success**: OrganizationEntity has complete CRUD methods matching UserEntity
+#### ✅ Complete Organization Entity - COMPLETE
+- **Order**: 1 | **Time**: 45m | **Status**: ✅ Done
+- [x] **Write Update Method Tests**
+  - updateOrganization method signature tested
+  - Immutable update pattern verified
+- [x] **Implement Update Organization**
+  - Added updateOrganization method following UserEntity pattern
+  - Proper date handling implemented
+- [x] **Verify Immutable Pattern**
+  - Updates return new instances
+  - Original objects remain unchanged
+- **Success**: ✅ OrganizationEntity has complete CRUD methods matching UserEntity
 
-#### 🔧 Fix Organization Repository
-- **Order**: 2 | **Time**: 60m
-- [ ] **Write Repository Tests**
-  - Test all CRUD operations
-  - Verify scan implementation works
-- [ ] **Fix Scan Implementation**
-  - Replace QueryCommand.scan with ScanCommand in listOrgs
-  - Fix any other repository pattern issues
-- [ ] **Complete CRUD Operations**
-  - Ensure all methods follow UserRepository pattern
-  - Add consistent error handling
-- **Success**: OrganizationRepository follows UserRepository patterns exactly
+#### ✅ Fix Organization Repository - COMPLETE
+- **Order**: 2 | **Time**: 60m | **Status**: ✅ Done
+- [x] **Write Repository Tests**
+  - All CRUD operations tested
+  - Scan implementation verified
+- [x] **Fix Scan Implementation**
+  - ScanCommand import fixed
+  - Error handling standardized
+- [x] **Complete CRUD Operations**
+  - All methods follow UserRepository pattern
+  - Consistent error handling added
+- **Success**: ✅ OrganizationRepository follows UserRepository patterns exactly
 
-#### 🔧 Implement Organization Service
-- **Order**: 3 | **Time**: 60m
+#### ⏳ Implement Organization Service - NOT STARTED
+- **Order**: 3 | **Time**: 60m | **Status**: ⏳ Next Priority
 - [ ] **Write Service Tests**
   - Test business logic interfaces
   - Test cross-domain validation scenarios
@@ -170,8 +206,8 @@ Infrastructure Fixes (CRITICAL)
   - Add business rules for organization management
 - **Success**: OrganizationService manages organizations with user integration
 
-#### 🔧 Implement Organization Routes
-- **Order**: 4 | **Time**: 60m
+#### ⏳ Implement Organization Routes - NOT STARTED
+- **Order**: 4 | **Time**: 60m | **Status**: ⏳ Blocked by Service
 - [ ] **Write Route Tests**
   - Test organization CRUD endpoints
   - Test ownership validation
@@ -183,37 +219,37 @@ Infrastructure Fixes (CRITICAL)
   - Ensure consistent API patterns
 - **Success**: Organization REST API with ownership validation
 
-### 📁 Repository Domain
-**Dependencies**: Infrastructure Fixes | **Priority**: HIGH | **Time**: 4h
+### 📁 Repository Domain - 45% COMPLETE
+**Dependencies**: Infrastructure Fixes ✅ | **Priority**: HIGH | **Time**: 2h remaining
 
-#### 🔧 Implement Repository Entity
-- **Order**: 1 | **Time**: 90m
-- [ ] **Write Entity Tests**
-  - Test all 5 transformation methods
-  - Test field mapping (repo_name ↔ repoName, is_private ↔ isPrivate)
-- [ ] **Implement Transformation Methods**
+#### ✅ Implement Repository Entity - COMPLETE
+- **Order**: 1 | **Time**: 90m | **Status**: ✅ Done
+- [x] **Write Entity Tests**
+  - All 5 transformation methods tested
+  - Field mapping verified (repo_name ↔ repoName, is_private ↔ isPrivate)
+- [x] **Implement Transformation Methods**
   - fromRequest, fromRecord, toRecord, toResponse, updateRepository
-  - Follow UserEntity pattern exactly
-- [ ] **Add Validation Logic**
-  - Add repository field validation
-  - Ensure proper data type handling
-- **Success**: Complete RepositoryEntity with all transformation methods
+  - Following UserEntity pattern exactly
+- [x] **Add Validation Logic**
+  - Repository field validation added
+  - Proper data type handling ensured
+- **Success**: ✅ Complete RepositoryEntity with all transformation methods
 
-#### 🔧 Implement Repository Repository
-- **Order**: 2 | **Time**: 90m
-- [ ] **Write Repository Tests**
-  - Test full CRUD operations
-  - Test GSI3 query methods
-- [ ] **Implement CRUD Operations**
-  - Follow UserRepository pattern exactly
-  - Add all basic repository operations
-- [ ] **Add GSI3 Queries**
-  - Implement listReposByOwner using GSI3
-  - Add repository-by-owner query patterns
-- **Success**: Full CRUD with GSI3 query support
+#### ✅ Implement Repository Repository - COMPLETE
+- **Order**: 2 | **Time**: 90m | **Status**: ✅ Done
+- [x] **Write Repository Tests**
+  - Full CRUD operations tested
+  - GSI3 query methods verified
+- [x] **Implement CRUD Operations**
+  - Following UserRepository pattern exactly
+  - All basic repository operations added
+- [x] **Add GSI3 Queries**
+  - Implemented listReposByOwner using GSI3 (listByOwner method)
+  - Repository-by-owner query patterns added
+- **Success**: ✅ Full CRUD with GSI3 query support
 
-#### 🔧 Implement Repository Service
-- **Order**: 3 | **Time**: 60m
+#### ⏳ Implement Repository Service - NOT STARTED
+- **Order**: 3 | **Time**: 60m | **Status**: ⏳ Next Priority
 - [ ] **Write Service Tests**
   - Test business logic interfaces
   - Test ownership validation scenarios
@@ -225,8 +261,8 @@ Infrastructure Fixes (CRITICAL)
   - Integrate with organization/user domains
 - **Success**: RepositoryService with cross-domain ownership validation
 
-#### 🔧 Implement Repository Routes
-- **Order**: 4 | **Time**: 60m
+#### ⏳ Implement Repository Routes - NOT STARTED
+- **Order**: 4 | **Time**: 60m | **Status**: ⏳ Blocked by Service
 - [ ] **Write Route Tests**
   - Test repository CRUD endpoints
   - Test GSI3 listing endpoints
@@ -240,24 +276,24 @@ Infrastructure Fixes (CRITICAL)
 
 ---
 
-## Phase 5: Core Access Patterns
-**Dependencies**: Repository Domain Complete | **Priority**: HIGH | **Time**: 2h
+## Phase 5: Core Access Patterns - 25% COMPLETE
+**Dependencies**: Repository Domain Complete | **Priority**: HIGH | **Time**: 1h 15m remaining
 
-### 🔍 Implement GSI3 Repo Queries
-- **Order**: 1 | **Time**: 75m
-- [ ] **Write GSI3 Query Tests**
-  - Test Query GSI3PK=ACCOUNT#{owner}, GSI3SK begins_with '#'
-  - Verify repository listing by user or organization works
-- [ ] **Implement Repo By Owner Queries**
-  - Create listReposByOwner using GSI3 index
-  - Add proper error handling for query operations
+### 🔍 Implement GSI3 Repo Queries - 25% COMPLETE
+- **Order**: 1 | **Time**: 75m remaining | **Status**: 🚧 Partially Complete
+- [x] **Write GSI3 Query Tests** (Partial)
+  - Basic listByOwner tests implemented in RepositoryRepository.test.ts
+  - Additional temporal sorting tests needed
+- [x] **Implement Repo By Owner Queries** (Partial)
+  - listByOwner method implemented in RepositoryRepository
+  - Uses GSI3 index with proper query structure
 - [ ] **Add Temporal Sorting**
   - Implement recent repositories sorted by updated_at
   - Add pagination support for repository listings
 - **Success**: GSI3 repository-by-owner queries work with temporal sorting and pagination
 
-### ⚡ Optimize Core Query Patterns
-- **Order**: 2 | **Time**: 45m
+### ⏳ Optimize Core Query Patterns - NOT STARTED
+- **Order**: 2 | **Time**: 45m | **Status**: ⏳ Blocked by Query Completion
 - [ ] **Write Performance Tests**
   - Benchmark core entity operations (GetItem, Query)
   - Set performance targets for each access pattern
@@ -271,11 +307,11 @@ Infrastructure Fixes (CRITICAL)
 
 ---
 
-## Phase 6: Domain Integration
+## Phase 6: Domain Integration - 0% COMPLETE
 **Dependencies**: All 3 domains + Core Access Patterns complete | **Priority**: MEDIUM | **Time**: 2h
 
-### 🔗 Implement Cross-Domain Validation
-- **Order**: 1 | **Time**: 45m
+### ⏳ Implement Cross-Domain Validation - NOT STARTED
+- **Order**: 1 | **Time**: 45m | **Status**: ⏳ Blocked by Services
 - [ ] **Write Integration Tests**
   - Test repository ownership across user/org domains
   - Test organization membership validation
@@ -287,8 +323,8 @@ Infrastructure Fixes (CRITICAL)
   - Add validation for cross-domain operations
 - **Success**: Repository ownership validated across user/org domains
 
-### 🧪 Add Integration Tests
-- **Order**: 2 | **Time**: 45m
+### ⏳ Add Integration Tests - NOT STARTED
+- **Order**: 2 | **Time**: 45m | **Status**: ⏳ Blocked by Cross-Domain Validation
 - [ ] **Write Integration Test Suite**
   - Create end-to-end workflow tests
   - Test complete user → org → repo flows
@@ -300,8 +336,8 @@ Infrastructure Fixes (CRITICAL)
   - Validate GSI queries work correctly
 - **Success**: Complete end-to-end tests for all workflows
 
-### ⚡ Implement GSI3 Queries
-- **Order**: 3 | **Time**: 30m
+### ⏳ Implement GSI3 Queries - NOT STARTED
+- **Order**: 3 | **Time**: 30m | **Status**: ⏳ Blocked by Integration Tests
 - [ ] **Write GSI3 Tests**
   - Test efficient repository listing by owner
   - Test pagination and sorting
@@ -317,33 +353,63 @@ Infrastructure Fixes (CRITICAL)
 
 ## Success Criteria
 
-### Infrastructure Quality Gates
-- ✅ 100% of test files run without errors
+### Infrastructure Quality Gates ✅ COMPLETE
+- ✅ 100% of test files run without errors (21/21 passing)
 - ✅ No data corruption in entity update operations
 - ✅ GSI3 temporal queries work correctly
 
-### Domain Completion Quality Gates
-- ✅ All domains follow identical Entity → Repository → Service → Router patterns
-- ✅ 100% test coverage for all CRUD operations
-- ✅ All domains expose complete REST APIs
+### Domain Completion Quality Gates 🚧 IN PROGRESS
+- ✅ All domains follow identical Entity → Repository patterns
+- 🚧 Services and Routes layers not started
+- ✅ Repository layer has 100% test coverage
+- ⏳ REST APIs not yet implemented
 
-### Integration Quality Gates
-- ✅ Business rules span domains correctly
-- ✅ Cross-domain data remains consistent
-- ✅ GSI3 queries perform efficiently
+### Integration Quality Gates ⏳ NOT STARTED
+- ⏳ Business rules span domains correctly
+- ⏳ Cross-domain data remains consistent
+- 🚧 GSI3 queries partially implemented
+
+---
+
+## Recommended Next Actions
+
+### Immediate Priority (Next 2-3 hours)
+1. **Implement UserService** (/spec:implement core-entities "Implement User Service")
+   - 60 minutes estimated
+   - Unblocks User Routes implementation
+
+2. **Implement User Routes** (/spec:implement core-entities "Implement User Routes")
+   - 60 minutes estimated
+   - Completes User domain (first full vertical slice)
+
+3. **Implement OrganizationService** (Can run in parallel)
+   - 60 minutes estimated
+   - Unblocks Organization Routes
+
+### Medium Priority (Next 4-6 hours)
+4. Complete Repository Service layer
+5. Complete all Route layers
+6. Finish GSI3 query implementation with pagination
+
+### Lower Priority (Final 2 hours)
+7. Cross-domain integration and validation
+8. End-to-end integration tests
+9. Performance optimization
 
 ---
 
 ## Agent Assignment Strategy
 
-- **Coder Agent**: Infrastructure fixes, entity implementation
-- **Architect Agent**: Service and router layer design
-- **Context Agent**: Cross-domain integration and validation
-- **Scaffold Agent**: Test file creation and structure setup
+- **Coder Agent**: Service and Route implementation (currently needed)
+- **Architect Agent**: Cross-domain integration design
+- **Context Agent**: Integration validation patterns
+- **Scaffold Agent**: Test file creation for services/routes
 
 ## Time Estimates
-- **Phase 1 (Infrastructure)**: 3 hours (sequential)
-- **Phase 2-4 (Domains)**: 3 hours (parallel execution)
-- **Phase 5 (Core Access Patterns)**: 2 hours (sequential)
-- **Phase 6 (Integration)**: 2 hours (sequential)
-- **Total**: 10 hours with parallel execution strategy
+- **Phase 1 (Infrastructure)**: ✅ 3 hours COMPLETE
+- **Phase 2-4 (Domains)**: 🚧 4-5 hours remaining (parallel execution)
+- **Phase 5 (Core Access Patterns)**: 🚧 1.5 hours remaining
+- **Phase 6 (Integration)**: ⏳ 2 hours remaining
+- **Total Remaining**: ~7 hours with parallel execution strategy
+- **Original Estimate**: 10 hours
+- **Progress**: ~30% complete by task count, ~40% by foundation work
