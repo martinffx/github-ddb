@@ -9,12 +9,15 @@ import {
 	ResourceNotFoundException,
 	ResourceInUseException,
 } from "@aws-sdk/client-dynamodb";
-import { appConfig } from "../../config";
+import { Config } from "../../config";
 import {
 	createTableParams,
 	initializeSchema,
 	type GithubSchema,
 } from "../../repos/schema";
+
+// Create a Config instance for tests
+const testConfig = new Config();
 
 // Simple counter for generating unique test data
 let userCounter = 0;
@@ -25,7 +28,7 @@ let client: DynamoDBClient | undefined;
 let initializationPromise: Promise<DynamoDBClient> | undefined;
 
 async function ensureTableExists(ddbClient: DynamoDBClient): Promise<void> {
-	const tableName = appConfig.database.tableName;
+	const tableName = testConfig.database.tableName;
 
 	// Check if table already exists
 	try {
@@ -95,12 +98,13 @@ export async function getDDBClient(): Promise<DynamoDBClient> {
 
 	// Start initialization
 	initializationPromise = (async () => {
+		const awsConfig = testConfig.aws;
 		const newClient = new DynamoDBClient({
-			endpoint: appConfig.aws.endpoint,
-			region: appConfig.aws.region,
+			endpoint: awsConfig.endpoint,
+			region: awsConfig.region,
 			credentials: {
-				accessKeyId: appConfig.aws.accessKeyId,
-				secretAccessKey: appConfig.aws.secretAccessKey,
+				accessKeyId: awsConfig.accessKeyId,
+				secretAccessKey: awsConfig.secretAccessKey,
 			},
 		});
 
@@ -207,5 +211,5 @@ export function resetFixtureCounters(): void {
  */
 export async function createGithubSchema(): Promise<GithubSchema> {
 	const client = await getDDBClient();
-	return initializeSchema(appConfig.database.tableName, client);
+	return initializeSchema(testConfig.database.tableName, client);
 }

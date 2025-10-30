@@ -1,5 +1,5 @@
 import type { UserFormatted, UserInput } from "../../repos";
-import type { UserCreateRequest, UserResponse } from "../../shared";
+import type { UserCreateRequest, UserResponse } from "../../routes/schema";
 import { DateTime } from "luxon";
 
 type UserEntityOpts = {

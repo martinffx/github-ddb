@@ -34,7 +34,10 @@ export class OrganizationRepository {
 				throw new DuplicateEntityError("OrganizationEntity", entity.orgName);
 			}
 			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError("", error.message);
+				throw new ValidationError(
+					error.path ?? "organization",
+					error.message,
+				);
 			}
 			throw error;
 		}

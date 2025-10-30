@@ -4,7 +4,7 @@ import type {
 	RepositoryCreateRequest,
 	RepositoryUpdateRequest,
 	RepositoryResponse,
-} from "../../shared";
+} from "../../routes/schema";
 
 type RepositoryEntityOpts = {
 	owner: string;

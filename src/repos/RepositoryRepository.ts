@@ -13,7 +13,7 @@ import {
 import { PutTransaction } from "dynamodb-toolbox/entity/actions/transactPut";
 import { execute } from "dynamodb-toolbox/entity/actions/transactWrite";
 import { RepositoryEntity } from "../services";
-import type { PaginatedResponse } from "../shared";
+import type { PaginatedResponse } from "../routes/schema";
 import {
 	DuplicateEntityError,
 	EntityNotFoundError,
@@ -106,7 +106,10 @@ export class RepoRepository {
 				);
 			}
 			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError(error.path ?? "", error.message);
+				throw new ValidationError(
+					error.path ?? "repository",
+					error.message,
+				);
 			}
 			throw error;
 		}
@@ -141,7 +144,10 @@ export class RepoRepository {
 				);
 			}
 			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError(error.path ?? "", error.message);
+				throw new ValidationError(
+					error.path ?? "repository",
+					error.message,
+				);
 			}
 			throw error;
 		}

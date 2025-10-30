@@ -1,3 +1,2 @@
-// Export all shared utilities and types
+// Export all shared utilities (errors only)
 export * from "./errors";
-export * from "./types";

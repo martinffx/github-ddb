@@ -3,7 +3,7 @@ import type { OrganizationFormatted, OrganizationInput } from "../../repos";
 import type {
 	OrganizationCreateRequest,
 	OrganizationResponse,
-} from "../../shared";
+} from "../../routes/schema";
 
 type OrganizationEntityOpts = {
 	orgName: string;
