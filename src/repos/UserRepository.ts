@@ -44,10 +44,7 @@ export class UserRepository {
 				throw new DuplicateEntityError("UserEntity", user.username);
 			}
 			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError(
-					error.path ?? "user",
-					error.message,
-				);
+				throw new ValidationError(error.path ?? "user", error.message);
 			}
 			throw error;
 		}

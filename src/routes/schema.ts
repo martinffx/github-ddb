@@ -15,7 +15,11 @@ export const BaseResponseSchema = Type.Object({
 /**
  * Generic paginated response wrapper
  */
-export const PaginatedResponseSchema = <T extends ReturnType<typeof Type.Object>>(itemSchema: T) =>
+export const PaginatedResponseSchema = <
+	T extends ReturnType<typeof Type.Object>,
+>(
+	itemSchema: T,
+) =>
 	Type.Object({
 		items: Type.Array(itemSchema),
 		offset: Type.Optional(Type.String()),

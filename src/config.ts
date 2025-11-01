@@ -2,68 +2,73 @@
 // This allows different .env files for different environments
 
 type AWSConfig = {
-  region: string;
-  endpoint?: string;
-  accessKeyId: string;
-  secretAccessKey: string;
+	region: string;
+	endpoint?: string;
+	accessKeyId: string;
+	secretAccessKey: string;
 };
 
 type DatabaseConfig = {
-  tableName: string;
+	tableName: string;
 };
 
 type ServerConfig = {
-  port: number;
-  host: string;
+	port: number;
+	host: string;
 };
 
 type ENV = "development" | "test" | "production";
 type AppConfig = {
-  env: ENV;
-  aws: AWSConfig;
-  database: DatabaseConfig;
-  server: ServerConfig;
+	env: ENV;
+	aws: AWSConfig;
+	database: DatabaseConfig;
+	server: ServerConfig;
 };
 type ConfigOpts = {
-  env?: ENV;
-  aws?: AWSConfig;
-  database?: DatabaseConfig;
-  server?: ServerConfig;
+	env?: ENV;
+	aws?: AWSConfig;
+	database?: DatabaseConfig;
+	server?: ServerConfig;
 };
 
 class Config {
-  public readonly env: ENV;
-  public readonly aws: AWSConfig;
-  public readonly database: DatabaseConfig;
-  public readonly server: ServerConfig;
+	public readonly env: ENV;
+	public readonly aws: AWSConfig;
+	public readonly database: DatabaseConfig;
+	public readonly server: ServerConfig;
 
-  constructor({ env, aws, database, server }: ConfigOpts = {}) {
-    this.env = env ?? "development";
-    this.aws = aws ?? {
-      region: "us-east-1",
-      accessKeyId: "default",
-      secretAccessKey: "default",
-    };
-    this.database = database ?? {
-      tableName: "GitHubTable",
-    };
-    this.server = server ?? {
-      port: 3000,
-      host: "0.0.0.0",
-    };
-  }
+	constructor({ env, aws, database, server }: ConfigOpts = {}) {
+		// Read from environment variables with fallbacks
+		this.env = env ?? (process.env.NODE_ENV as ENV) ?? "development";
 
-  public isDevelopment(): boolean {
-    return this.env === "development";
-  }
+		this.aws = aws ?? {
+			region: process.env.AWS_REGION ?? "us-east-1",
+			endpoint: process.env.AWS_ENDPOINT,
+			accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? "default",
+			secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? "default",
+		};
 
-  public isTest(): boolean {
-    return this.env === "test";
-  }
+		this.database = database ?? {
+			tableName: process.env.DYNAMODB_TABLE_NAME ?? "GitHubTable",
+		};
 
-  public isProduction(): boolean {
-    return this.env === "production";
-  }
+		this.server = server ?? {
+			port: process.env.PORT ? Number.parseInt(process.env.PORT, 10) : 3000,
+			host: process.env.HOST ?? "0.0.0.0",
+		};
+	}
+
+	public isDevelopment(): boolean {
+		return this.env === "development";
+	}
+
+	public isTest(): boolean {
+		return this.env === "test";
+	}
+
+	public isProduction(): boolean {
+		return this.env === "production";
+	}
 }
 
 export { Config };

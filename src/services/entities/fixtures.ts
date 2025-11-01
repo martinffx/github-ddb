@@ -62,7 +62,7 @@ async function ensureTableExists(ddbClient: DynamoDBClient): Promise<void> {
 async function waitForTableActive(
 	ddbClient: DynamoDBClient,
 	tableName: string,
-	maxAttempts = 30,
+	maxAttempts = 60,
 ): Promise<void> {
 	for (let i = 0; i < maxAttempts; i++) {
 		try {
@@ -77,11 +77,11 @@ async function waitForTableActive(
 				throw error;
 			}
 		}
-		// Wait 100ms before next attempt
-		await new Promise((resolve) => setTimeout(resolve, 100));
+		// Wait 50ms before next attempt (faster polling)
+		await new Promise((resolve) => setTimeout(resolve, 50));
 	}
 	throw new Error(
-		`Table ${tableName} did not become active within ${maxAttempts * 100}ms`,
+		`Table ${tableName} did not become active within ${maxAttempts * 50}ms`,
 	);
 }
 
@@ -212,4 +212,16 @@ export function resetFixtureCounters(): void {
 export async function createGithubSchema(): Promise<GithubSchema> {
 	const client = await getDDBClient();
 	return initializeSchema(testConfig.database.tableName, client);
+}
+
+/**
+ * Cleanup DynamoDB client connections
+ * Call this in test afterAll hooks to prevent Jest from hanging
+ */
+export async function cleanupDDBClient(): Promise<void> {
+	if (client !== undefined) {
+		client.destroy();
+		client = undefined;
+		initializationPromise = undefined;
+	}
 }

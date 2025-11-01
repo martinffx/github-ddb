@@ -106,10 +106,7 @@ export class RepoRepository {
 				);
 			}
 			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError(
-					error.path ?? "repository",
-					error.message,
-				);
+				throw new ValidationError(error.path ?? "repository", error.message);
 			}
 			throw error;
 		}
@@ -144,10 +141,7 @@ export class RepoRepository {
 				);
 			}
 			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError(
-					error.path ?? "repository",
-					error.message,
-				);
+				throw new ValidationError(error.path ?? "repository", error.message);
 			}
 			throw error;
 		}

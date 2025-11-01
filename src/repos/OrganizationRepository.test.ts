@@ -3,6 +3,7 @@ import { OrganizationEntity } from "../services/entities/OrganizationEntity";
 import {
 	createOrganizationEntity,
 	createGithubSchema,
+	cleanupDDBClient,
 } from "../services/entities/fixtures";
 import { DuplicateEntityError, EntityNotFoundError } from "../shared";
 
@@ -12,6 +13,10 @@ describe("OrganizationRepository", () => {
 	beforeAll(async () => {
 		const { organization } = await createGithubSchema();
 		orgRepo = new OrganizationRepository(organization);
+	}, 15000);
+
+	afterAll(async () => {
+		await cleanupDDBClient();
 	});
 
 	it("should create a new organization", async () => {

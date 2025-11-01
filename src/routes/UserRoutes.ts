@@ -1,12 +1,12 @@
 import type { FastifyInstance, FastifyPluginAsync } from "fastify";
 import {
-  UserCreateSchema,
-  UserUpdateSchema,
-  UserResponseSchema,
-  UserParamsSchema,
   type UserCreateRequest,
-  type UserUpdateRequest,
+  UserCreateSchema,
+  UserParamsSchema,
   type UserResponse,
+  UserResponseSchema,
+  type UserUpdateRequest,
+  UserUpdateSchema,
 } from "./schema";
 
 interface UserCreateRoute {
@@ -46,6 +46,9 @@ export const UserRoutes: FastifyPluginAsync = async (
     "/",
     {
       schema: {
+        tags: ["User"],
+        operationId: "createUser",
+        description: "Create a new user",
         body: UserCreateSchema,
         response: {
           201: UserResponseSchema,
@@ -68,6 +71,9 @@ export const UserRoutes: FastifyPluginAsync = async (
     "/:username",
     {
       schema: {
+        tags: ["User"],
+        operationId: "getUser",
+        description: "Get a user by username",
         params: UserParamsSchema,
         response: {
           200: UserResponseSchema,
@@ -92,6 +98,9 @@ export const UserRoutes: FastifyPluginAsync = async (
     "/:username",
     {
       schema: {
+        tags: ["User"],
+        operationId: "updateUser",
+        description: "Update an existing user",
         params: UserParamsSchema,
         body: UserUpdateSchema,
         response: {
@@ -117,6 +126,9 @@ export const UserRoutes: FastifyPluginAsync = async (
     "/:username",
     {
       schema: {
+        tags: ["User"],
+        operationId: "deleteUser",
+        description: "Delete a user",
         params: UserParamsSchema,
         response: {
           204: { type: "null" },

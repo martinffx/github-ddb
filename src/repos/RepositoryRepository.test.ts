@@ -2,6 +2,7 @@ import {
 	createGithubSchema,
 	createRepositoryEntity,
 	createUserEntity,
+	cleanupDDBClient,
 } from "../services/entities/fixtures";
 import { OrganizationEntity } from "../services/entities/OrganizationEntity";
 import { RepositoryEntity } from "../services/entities/RepositoryEntity";
@@ -21,6 +22,10 @@ describe("RepositoryRepository", () => {
 		repositoryRepo = new RepoRepository(table, repository, user, organization);
 		userRepo = new UserRepository(user);
 		orgRepo = new OrganizationRepository(organization);
+	}, 15000);
+
+	afterAll(async () => {
+		await cleanupDDBClient();
 	});
 
 	it("should create a new repository with user owner", async () => {

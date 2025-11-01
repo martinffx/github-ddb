@@ -7,6 +7,7 @@ import {
 import {
 	createUserEntity,
 	createGithubSchema,
+	cleanupDDBClient,
 } from "../services/entities/fixtures";
 
 describe("UserRepository", () => {
@@ -15,6 +16,10 @@ describe("UserRepository", () => {
 	beforeAll(async () => {
 		const { user } = await createGithubSchema();
 		userRepo = new UserRepository(user);
+	}, 15000);
+
+	afterAll(async () => {
+		await cleanupDDBClient();
 	});
 
 	it("should create a new user successfully", async () => {
