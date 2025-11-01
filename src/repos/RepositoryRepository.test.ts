@@ -163,4 +163,61 @@ describe("RepositoryRepository", () => {
 		await repositoryRepo.deleteRepo({ owner: "repouser4", repo_name: "repo2" });
 		await userRepo.deleteUser(testUser.username);
 	});
+
+	it("should list repositories by owner sorted by creation time (newest first)", async () => {
+		// Create user first
+		const testUser = createUserEntity({ username: "repouser5" });
+		await userRepo.createUser(testUser);
+
+		// Create 3 repositories with small delays to ensure different timestamps
+		const repo1 = createRepositoryEntity({
+			owner: "repouser5",
+			repo_name: "repo-first",
+		});
+		await repositoryRepo.createRepo(repo1);
+
+		// Wait 50ms to ensure different timestamp
+		await new Promise((resolve) => setTimeout(resolve, 50));
+
+		const repo2 = createRepositoryEntity({
+			owner: "repouser5",
+			repo_name: "repo-second",
+		});
+		await repositoryRepo.createRepo(repo2);
+
+		// Wait 50ms to ensure different timestamp
+		await new Promise((resolve) => setTimeout(resolve, 50));
+
+		const repo3 = createRepositoryEntity({
+			owner: "repouser5",
+			repo_name: "repo-third",
+		});
+		await repositoryRepo.createRepo(repo3);
+
+		// List repositories by owner
+		const result = await repositoryRepo.listByOwner("repouser5");
+
+		// Verify we got all 3 repositories
+		expect(result.items).toHaveLength(3);
+
+		// Verify they are sorted by creation time (newest first)
+		// Since repo3 was created last, it should be first
+		expect(result.items[0].repoName).toBe("repo-third");
+		expect(result.items[1].repoName).toBe("repo-second");
+		expect(result.items[2].repoName).toBe("repo-first");
+
+		// Verify creation times are in reverse chronological order
+		expect(result.items[0].created.toMillis()).toBeGreaterThanOrEqual(
+			result.items[1].created.toMillis(),
+		);
+		expect(result.items[1].created.toMillis()).toBeGreaterThanOrEqual(
+			result.items[2].created.toMillis(),
+		);
+
+		// Clean up
+		await repositoryRepo.deleteRepo({ owner: "repouser5", repo_name: "repo-first" });
+		await repositoryRepo.deleteRepo({ owner: "repouser5", repo_name: "repo-second" });
+		await repositoryRepo.deleteRepo({ owner: "repouser5", repo_name: "repo-third" });
+		await userRepo.deleteUser(testUser.username);
+	});
 });

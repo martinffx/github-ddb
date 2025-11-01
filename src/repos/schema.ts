@@ -94,6 +94,14 @@ const UserRecord = new Entity({
 			.validate((value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)),
 		bio: string().optional(),
 		payment_plan_id: string().optional(),
+		created_at: string()
+			.required()
+			.default(() => DateTime.utc().toISO())
+			.savedAs("created"),
+		modified_at: string()
+			.required()
+			.default(() => DateTime.utc().toISO())
+			.savedAs("modified"),
 	}).and((_schema) => ({
 		PK: string()
 			.key()
@@ -129,6 +137,14 @@ const OrganizationRecord = new Entity({
 			.key(),
 		description: string().optional(),
 		payment_plan_id: string().optional(),
+		created_at: string()
+			.required()
+			.default(() => DateTime.utc().toISO())
+			.savedAs("created"),
+		modified_at: string()
+			.required()
+			.default(() => DateTime.utc().toISO())
+			.savedAs("modified"),
 	}).and((_schema) => ({
 		PK: string()
 			.key()
@@ -169,6 +185,14 @@ const RepoRecord = new Entity({
 		description: string().optional(),
 		is_private: boolean().required().default(false),
 		language: string().optional(),
+		created_at: string()
+			.required()
+			.default(() => DateTime.utc().toISO())
+			.savedAs("created"),
+		modified_at: string()
+			.required()
+			.default(() => DateTime.utc().toISO())
+			.savedAs("modified"),
 	}).and((_schema) => ({
 		PK: string()
 			.key()
