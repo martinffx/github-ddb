@@ -9,40 +9,22 @@ import {
 	type OrganizationResponse,
 } from "./schema";
 
-interface OrganizationCreateRoute {
-	Body: OrganizationCreateRequest;
-	Reply: OrganizationResponse;
-}
-
-interface OrganizationGetRoute {
-	Params: { orgName: string };
-	Reply: OrganizationResponse;
-}
-
-interface OrganizationUpdateRoute {
-	Params: { orgName: string };
-	Body: OrganizationUpdateRequest;
-	Reply: OrganizationResponse;
-}
-
-interface OrganizationDeleteRoute {
-	Params: { orgName: string };
-}
-
 /**
- * Organziation Routes Plugin
+ * Organization Routes Plugin
  * Registers all organization-related HTTP endpoints
  */
 export const OrganizationRoutes: FastifyPluginAsync = async (
 	fastify: FastifyInstance,
 ) => {
-	// Get organizationService from fastify decorator
 	const { organizationService } = fastify.services;
 
 	/**
 	 * POST / - Create a new organization
 	 */
-	fastify.post<OrganizationCreateRoute>(
+	fastify.post<{
+		Body: OrganizationCreateRequest;
+		Reply: OrganizationResponse;
+	}>(
 		"/",
 		{
 			schema: {
@@ -56,10 +38,7 @@ export const OrganizationRoutes: FastifyPluginAsync = async (
 			},
 		},
 		async (request, reply) => {
-			// Create organization via service
 			const result = await organizationService.createOrganization(request.body);
-
-			// Return 201 Created
 			return reply.code(201).send(result);
 		},
 	);
@@ -67,7 +46,10 @@ export const OrganizationRoutes: FastifyPluginAsync = async (
 	/**
 	 * GET /:orgName - Retrieve an organization by name
 	 */
-	fastify.get<OrganizationGetRoute>(
+	fastify.get<{
+		Params: { orgName: string };
+		Reply: OrganizationResponse;
+	}>(
 		"/:orgName",
 		{
 			schema: {
@@ -81,12 +63,9 @@ export const OrganizationRoutes: FastifyPluginAsync = async (
 			},
 		},
 		async (request, reply) => {
-			const { orgName } = request.params;
-
-			// Get organization via service
-			const result = await organizationService.getOrganization(orgName);
-
-			// Return 200 OK
+			const result = await organizationService.getOrganization(
+				request.params.orgName,
+			);
 			return reply.code(200).send(result);
 		},
 	);
@@ -94,7 +73,11 @@ export const OrganizationRoutes: FastifyPluginAsync = async (
 	/**
 	 * PUT /:orgName - Update an existing organization
 	 */
-	fastify.put<OrganizationUpdateRoute>(
+	fastify.put<{
+		Params: { orgName: string };
+		Body: OrganizationUpdateRequest;
+		Reply: OrganizationResponse;
+	}>(
 		"/:orgName",
 		{
 			schema: {
@@ -109,15 +92,10 @@ export const OrganizationRoutes: FastifyPluginAsync = async (
 			},
 		},
 		async (request, reply) => {
-			const { orgName } = request.params;
-
-			// Update organization via service
 			const result = await organizationService.updateOrganization(
-				orgName,
+				request.params.orgName,
 				request.body,
 			);
-
-			// Return 200 OK
 			return reply.code(200).send(result);
 		},
 	);
@@ -125,7 +103,9 @@ export const OrganizationRoutes: FastifyPluginAsync = async (
 	/**
 	 * DELETE /:orgName - Delete an organization
 	 */
-	fastify.delete<OrganizationDeleteRoute>(
+	fastify.delete<{
+		Params: { orgName: string };
+	}>(
 		"/:orgName",
 		{
 			schema: {
@@ -139,12 +119,7 @@ export const OrganizationRoutes: FastifyPluginAsync = async (
 			},
 		},
 		async (request, reply) => {
-			const { orgName } = request.params;
-
-			// Delete organization via service
-			await organizationService.deleteOrganization(orgName);
-
-			// Return 204 No Content
+			await organizationService.deleteOrganization(request.params.orgName);
 			return reply.code(204).send();
 		},
 	);

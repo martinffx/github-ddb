@@ -12,38 +12,9 @@ import {
 } from "./schema";
 import { Type } from "@sinclair/typebox";
 
-interface RepositoryCreateRoute {
-	Body: RepositoryCreateRequest;
-	Reply: RepositoryResponse;
-}
-
-interface RepositoryGetRoute {
-	Params: { owner: string; repoName: string };
-	Reply: RepositoryResponse;
-}
-
-interface RepositoryUpdateRoute {
-	Params: { owner: string; repoName: string };
-	Body: RepositoryUpdateRequest;
-	Reply: RepositoryResponse;
-}
-
-interface RepositoryDeleteRoute {
-	Params: { owner: string; repoName: string };
-}
-
-interface RepositoryListRoute {
-	Params: { owner: string };
-	Querystring: { limit?: string; offset?: string };
-	Reply: {
-		items: RepositoryResponse[];
-		offset?: string;
-	};
-}
-
 /**
- * Organziation Routes Plugin
- * Registers all organization-related HTTP endpoints
+ * Repository Routes Plugin
+ * Registers all repository-related HTTP endpoints
  */
 export const RepositoryRoutes: FastifyPluginAsync = async (
 	fastify: FastifyInstance,
@@ -53,7 +24,10 @@ export const RepositoryRoutes: FastifyPluginAsync = async (
 	/**
 	 * POST / - Create a new repository
 	 */
-	fastify.post<RepositoryCreateRoute>(
+	fastify.post<{
+		Body: RepositoryCreateRequest;
+		Reply: RepositoryResponse;
+	}>(
 		"/",
 		{
 			schema: {
@@ -67,10 +41,7 @@ export const RepositoryRoutes: FastifyPluginAsync = async (
 			},
 		},
 		async (request, reply) => {
-			// Create repository via service
 			const result = await repositoryService.createRepository(request.body);
-
-			// Return 201 Created
 			return reply.code(201).send(result);
 		},
 	);
@@ -78,7 +49,10 @@ export const RepositoryRoutes: FastifyPluginAsync = async (
 	/**
 	 * GET /:owner/:repoName - Retrieve a repository by owner and name
 	 */
-	fastify.get<RepositoryGetRoute>(
+	fastify.get<{
+		Params: { owner: string; repoName: string };
+		Reply: RepositoryResponse;
+	}>(
 		"/:owner/:repoName",
 		{
 			schema: {
@@ -92,12 +66,10 @@ export const RepositoryRoutes: FastifyPluginAsync = async (
 			},
 		},
 		async (request, reply) => {
-			const { owner, repoName } = request.params;
-
-			// Get repository via service
-			const result = await repositoryService.getRepository(owner, repoName);
-
-			// Return 200 OK
+			const result = await repositoryService.getRepository(
+				request.params.owner,
+				request.params.repoName,
+			);
 			return reply.code(200).send(result);
 		},
 	);
@@ -105,7 +77,11 @@ export const RepositoryRoutes: FastifyPluginAsync = async (
 	/**
 	 * PUT /:owner/:repoName - Update an existing repository
 	 */
-	fastify.put<RepositoryUpdateRoute>(
+	fastify.put<{
+		Params: { owner: string; repoName: string };
+		Body: RepositoryUpdateRequest;
+		Reply: RepositoryResponse;
+	}>(
 		"/:owner/:repoName",
 		{
 			schema: {
@@ -120,16 +96,11 @@ export const RepositoryRoutes: FastifyPluginAsync = async (
 			},
 		},
 		async (request, reply) => {
-			const { owner, repoName } = request.params;
-
-			// Update repository via service
 			const result = await repositoryService.updateRepository(
-				owner,
-				repoName,
+				request.params.owner,
+				request.params.repoName,
 				request.body,
 			);
-
-			// Return 200 OK
 			return reply.code(200).send(result);
 		},
 	);
@@ -137,7 +108,9 @@ export const RepositoryRoutes: FastifyPluginAsync = async (
 	/**
 	 * DELETE /:owner/:repoName - Delete a repository
 	 */
-	fastify.delete<RepositoryDeleteRoute>(
+	fastify.delete<{
+		Params: { owner: string; repoName: string };
+	}>(
 		"/:owner/:repoName",
 		{
 			schema: {
@@ -151,12 +124,10 @@ export const RepositoryRoutes: FastifyPluginAsync = async (
 			},
 		},
 		async (request, reply) => {
-			const { owner, repoName } = request.params;
-
-			// Delete repository via service
-			await repositoryService.deleteRepository(owner, repoName);
-
-			// Return 204 No Content
+			await repositoryService.deleteRepository(
+				request.params.owner,
+				request.params.repoName,
+			);
 			return reply.code(204).send();
 		},
 	);
@@ -164,7 +135,14 @@ export const RepositoryRoutes: FastifyPluginAsync = async (
 	/**
 	 * GET /owner/:owner - List all repositories for an owner
 	 */
-	fastify.get<RepositoryListRoute>(
+	fastify.get<{
+		Params: { owner: string };
+		Querystring: { limit?: string; offset?: string };
+		Reply: {
+			items: RepositoryResponse[];
+			offset?: string;
+		};
+	}>(
 		"/owner/:owner",
 		{
 			schema: {
@@ -182,28 +160,21 @@ export const RepositoryRoutes: FastifyPluginAsync = async (
 			},
 		},
 		async (request, reply) => {
-			const { owner } = request.params;
-			const { limit, offset } = request.query;
-
-			// Parse limit to number if provided
 			const options: { limit?: number; offset?: string } = {};
-			if (limit !== undefined) {
-				const parsedLimit = Number.parseInt(limit, 10);
+			if (request.query.limit !== undefined) {
+				const parsedLimit = Number.parseInt(request.query.limit, 10);
 				if (!Number.isNaN(parsedLimit)) {
 					options.limit = parsedLimit;
 				}
 			}
-			if (offset !== undefined) {
-				options.offset = offset;
+			if (request.query.offset !== undefined) {
+				options.offset = request.query.offset;
 			}
 
-			// List repositories via service
 			const result = await repositoryService.listRepositoriesByOwner(
-				owner,
+				request.params.owner,
 				options,
 			);
-
-			// Return 200 OK
 			return reply.code(200).send(result);
 		},
 	);

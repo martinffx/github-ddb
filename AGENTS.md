@@ -6,7 +6,7 @@ This file provides guidance for AI agents working with this repository.
 This is a TypeScript/Node.js project using Fastify as the web framework with Biome for linting and formatting. The project implements a DynamoDB-based data layer using the dynamodb-toolbox library.
 
 ## Development Environment
-- **Package Manager**: pnpm (version 10.15.0)
+- **Package Manager**: pnpm (version 10.18.2)
 - **Runtime**: Node.js with TypeScript support via tsx
 - **Web Framework**: Fastify
 - **Schema Validation**: Typebox
