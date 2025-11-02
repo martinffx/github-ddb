@@ -3,17 +3,18 @@ import {
 	TransactionCanceledException,
 } from "@aws-sdk/client-dynamodb";
 import {
+	ConditionCheck,
 	DeleteItemCommand,
+	DynamoDBToolboxError,
 	GetItemCommand,
 	PutItemCommand,
 	QueryCommand,
-	DynamoDBToolboxError,
-	ConditionCheck,
 } from "dynamodb-toolbox";
 import { PutTransaction } from "dynamodb-toolbox/entity/actions/transactPut";
 import { execute } from "dynamodb-toolbox/entity/actions/transactWrite";
-import { RepositoryEntity } from "../services";
 import type { PaginatedResponse } from "../routes/schema";
+import { RepositoryEntity } from "../services";
+import type { RepositoryId } from "../services/entities/RepositoryEntity";
 import {
 	DuplicateEntityError,
 	EntityNotFoundError,
@@ -23,12 +24,11 @@ import {
 	decodePageToken,
 	encodePageToken,
 	type GithubTable,
+	type OrganizationRecord,
 	type RepoFormatted,
 	type RepoRecord,
 	type UserRecord,
-	type OrganizationRecord,
 } from "./schema";
-import type { RepositoryId } from "../services/entities/RepositoryEntity";
 
 type ListOptions = {
 	limit?: number;
@@ -165,6 +165,7 @@ export class RepoRepository {
 
 		const result = await this.table
 			.build(QueryCommand)
+			.entities(this.record)
 			.query({
 				partition: `ACCOUNT#${owner}`,
 				index: "GSI3",
