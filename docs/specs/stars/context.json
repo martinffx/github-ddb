@@ -1,0 +1,99 @@
+{
+	"product_vision": "Implementation of GitHub's complete data model using DynamoDB single table design patterns with DynamoDB-Toolbox for type-safe schema definitions and queries.",
+	"existing_features": [
+		"User",
+		"Organization",
+		"Repository",
+		"Counter",
+		"Issue",
+		"IssueComment",
+		"PullRequest",
+		"PRComment",
+		"Reaction"
+	],
+	"architecture": {
+		"pattern": "Layered Architecture",
+		"layers": [
+			"API Layer (Fastify Routes)",
+			"Service Layer (Business Logic)",
+			"Repository Layer (Data Access)",
+			"Entity Layer (Domain Objects)",
+			"DynamoDB"
+		],
+		"entity_transformations": [
+			"fromRequest() - API request → Entity",
+			"fromRecord() - DynamoDB record → Entity",
+			"toRecord() - Entity → DynamoDB InputItem",
+			"toResponse() - Entity → API response"
+		],
+		"naming_conventions": {
+			"entity_layer": "camelCase (repoName, isPrivate)",
+			"database_layer": "snake_case (repo_name, is_private)"
+		}
+	},
+	"dynamodb_patterns": {
+		"design": "Single Table Design",
+		"table_name": "GitHubTable",
+		"key_patterns": {
+			"single_item": "PK and SK identical (ACCOUNT#{username})",
+			"item_collections": "Related items share partition key",
+			"adjacency_list": "Many-to-many via separate items (Stars, Memberships)",
+			"zero_padding": "Numeric values padded for lexicographic sorting"
+		},
+		"gsi_usage": {
+			"GSI1": "Alternate access patterns",
+			"GSI2": "Fork relationships and secondary lookups",
+			"GSI3": "Parent-child with temporal sorting",
+			"GSI4": "Status-based queries"
+		},
+		"timestamps": {
+			"auto_added": "_ct (created), _md (modified) in ISO 8601",
+			"formatted_as": "created/modified when querying with .entities()"
+		}
+	},
+	"implementation_conventions": {
+		"file_locations": {
+			"schemas": "/src/repos/schema.ts",
+			"entities": "/src/services/entities/{EntityName}Entity.ts",
+			"repositories": "/src/repos/{EntityName}Repository.ts",
+			"tests": "/src/repos/{EntityName}Repository.test.ts"
+		},
+		"repository_patterns": {
+			"create": "PutItemCommand with condition: { attr: 'PK', exists: false }",
+			"get": "GetItemCommand or QueryCommand for partial keys",
+			"update": "PutItemCommand with condition: { attr: 'PK', exists: true }",
+			"delete": "DeleteItemCommand (idempotent)",
+			"query": "table.build(QueryCommand).entities(this.record)"
+		},
+		"testing": {
+			"layers": [
+				"Repository Tests - Data access, CRUD, queries, transactions",
+				"Service Tests - Business logic, orchestration",
+				"Router Tests - HTTP handling, validation, error responses"
+			],
+			"isolation": "Use unique testRunId, cleanup after tests, DynamoDB Local"
+		},
+		"error_handling": {
+			"ConditionalCheckFailedException": "DuplicateEntityError or EntityNotFoundError",
+			"DynamoDBToolboxError": "ValidationError",
+			"TransactionCanceledException": "Check individual transaction results"
+		}
+	},
+	"similar_implementations": {
+		"reaction_entity": {
+			"pattern": "Polymorphic targeting pattern",
+			"files": [
+				"/src/services/entities/ReactionEntity.ts",
+				"/src/repos/ReactionRepository.ts"
+			]
+		}
+	},
+	"star_specific_notes": {
+		"access_pattern": "Adjacency List with GSI for bidirectional queries",
+		"key_design": {
+			"user_to_repos": "PK: ACCOUNT#{username}, SK: STAR#{owner}#{repo}#{timestamp}",
+			"repo_to_users": "GSI1PK: REPO#{owner}#{repo}, GSI1SK: STAR#{username}#{timestamp}"
+		},
+		"timestamp_handling": "Use Query with beginsWith for get() method since exact timestamp unknown"
+	}
+}

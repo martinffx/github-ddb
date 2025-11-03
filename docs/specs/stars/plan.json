@@ -1,0 +1,511 @@
+{
+  "feature": "stars",
+  "version": "1.0.0",
+  "status": "PLANNING",
+  "lastUpdated": "2025-11-02",
+  "phases": {
+    "star_domain": {
+      "name": "Star Domain",
+      "description": "Core star relationship functionality enabling many-to-many relationships between users and repositories",
+      "dependencies": [],
+      "tasks": [
+        "star_schema",
+        "star_entity",
+        "star_repository",
+        "star_exports"
+      ]
+    }
+  },
+  "tasks": {
+    "star_schema": {
+      "id": "star_schema",
+      "phase": "star_domain",
+      "order": 1,
+      "type": "schema",
+      "file": "/Users/martinrichards/code/gh-ddb/src/repos/schema.ts",
+      "dependencies": [],
+      "tdd_steps": [
+        "stub",
+        "test",
+        "implement"
+      ],
+      "description": "Add StarRecord entity to DynamoDB-Toolbox schema with key patterns and computed keys",
+      "acceptance_criteria": [
+        "StarRecord entity defined with business attributes (user_name, repo_owner, repo_name, starred_at)",
+        "PK, SK, GSI1PK, GSI1SK computed keys configured correctly",
+        "StarInput and StarFormatted types exported",
+        "Schema compiles without TypeScript errors",
+        "Key computations follow pattern: PK=ACCOUNT#{user_name}, SK=STAR#{repo_owner}#{repo_name}#{starred_at}",
+        "GSI1 keys follow pattern: GSI1PK=REPO#{repo_owner}#{repo_name}, GSI1SK=STAR#{user_name}#{starred_at}"
+      ],
+      "stub_details": {
+        "approach": "Define entity structure with attribute definitions and .link() methods for computed keys",
+        "key_patterns": {
+          "user_name": "string().required().key()",
+          "repo_owner": "string().required().key()",
+          "repo_name": "string().required().key()",
+          "starred_at": "string().default(() => new Date().toISOString()).savedAs('starred_at')",
+          "PK": "string().key().link<typeof _schema>(({ user_name }) => `ACCOUNT#${user_name}`)",
+          "SK": "string().key().link<typeof _schema>(({ repo_owner, repo_name, starred_at }) => `STAR#${repo_owner}#${repo_name}#${starred_at}`)",
+          "GSI1PK": "string().link<typeof _schema>(({ repo_owner, repo_name }) => `REPO#${repo_owner}#${repo_name}`)",
+          "GSI1SK": "string().link<typeof _schema>(({ user_name, starred_at }) => `STAR#${user_name}#${starred_at}`)"
+        }
+      },
+      "test_details": {
+        "approach": "Verify schema validates correctly and types are exported",
+        "validations": [
+          "Schema compiles without errors",
+          "StarInput type includes required fields",
+          "StarFormatted type includes all attributes and timestamps",
+          "Key computations generate correct strings"
+        ]
+      },
+      "implement_details": {
+        "approach": "Complete all attribute definitions and key computations",
+        "steps": [
+          "Add StarRecord entity definition to schema.ts",
+          "Define business attributes with proper types",
+          "Add computed key links for PK, SK, GSI1PK, GSI1SK",
+          "Export StarRecord, StarInput, StarFormatted types",
+          "Update GithubSchema type to include StarRecord",
+          "Update initializeSchema() to register StarRecord"
+        ]
+      }
+    },
+    "star_entity": {
+      "id": "star_entity",
+      "phase": "star_domain",
+      "order": 2,
+      "type": "entity",
+      "file": "/Users/martinrichards/code/gh-ddb/src/services/entities/StarEntity.ts",
+      "dependencies": [
+        "star_schema"
+      ],
+      "tdd_steps": [
+        "stub",
+        "test",
+        "implement"
+      ],
+      "description": "Create StarEntity with transformation methods and validation logic",
+      "acceptance_criteria": [
+        "StarEntity class created with all properties (userName, repoOwner, repoName, starredAt)",
+        "fromRequest() converts API input to entity with validation",
+        "fromRecord() converts DynamoDB record to entity with DateTime parsing",
+        "toRecord() converts entity to DynamoDB input format",
+        "toResponse() converts entity to API response format",
+        "validate() enforces business rules",
+        "All transformations tested and working",
+        "Types exported: StarEntityOpts, StarCreateRequest, StarResponse"
+      ],
+      "stub_details": {
+        "approach": "Create class with method signatures throwing 'Not Implemented'",
+        "methods": [
+          "constructor(opts: StarEntityOpts)",
+          "static fromRequest(data: StarCreateRequest): StarEntity",
+          "static fromRecord(record: StarFormatted): StarEntity",
+          "toRecord(): StarInput",
+          "toResponse(): StarResponse",
+          "static validate(data: Partial<StarCreateRequest>): void"
+        ],
+        "properties": [
+          "userName: string",
+          "repoOwner: string",
+          "repoName: string",
+          "starredAt: DateTime"
+        ]
+      },
+      "test_details": {
+        "approach": "Unit tests for each transformation method",
+        "scenarios": [
+          "fromRequest() normalizes input and sets defaults",
+          "fromRecord() converts snake_case to camelCase and parses dates",
+          "toRecord() converts camelCase to snake_case and formats dates",
+          "toResponse() returns clean JSON-serializable object",
+          "validate() throws ValidationError for missing fields",
+          "validate() throws ValidationError for invalid GitHub username format",
+          "validate() throws ValidationError for invalid repository name format"
+        ]
+      },
+      "implement_details": {
+        "approach": "Implement all transformation methods following ReactionEntity pattern",
+        "transformations": {
+          "fromRequest": "Validate input, convert snake_case to camelCase, default starredAt to DateTime.utc()",
+          "fromRecord": "Convert snake_case to camelCase, parse ISO 8601 starred_at to DateTime",
+          "toRecord": "Convert camelCase to snake_case, format DateTime to ISO 8601",
+          "toResponse": "Convert camelCase to snake_case, format DateTime to ISO 8601"
+        },
+        "validation_rules": [
+          "userName must be a valid GitHub username (alphanumeric, hyphens, max 39 chars)",
+          "repoOwner must be a valid GitHub username or organization",
+          "repoName must be a valid repository name (alphanumeric, hyphens, underscores, dots)",
+          "starredAt must be a valid DateTime if provided"
+        ]
+      }
+    },
+    "star_repository": {
+      "id": "star_repository",
+      "phase": "star_domain",
+      "order": 3,
+      "type": "repository",
+      "file": "/Users/martinrichards/code/gh-ddb/src/repos/StarRepository.ts",
+      "dependencies": [
+        "star_entity",
+        "star_schema"
+      ],
+      "tdd_steps": [
+        "stub",
+        "test",
+        "implement"
+      ],
+      "description": "Create StarRepository with all data access methods using DynamoDB transactions",
+      "acceptance_criteria": [
+        "StarRepository class created with constructor accepting table and entity records",
+        "create() method with transaction validation (user and repo existence)",
+        "get() method with query using begins_with pattern",
+        "delete() method with idempotent behavior",
+        "listByUser() method with pagination support",
+        "listByRepo() method using GSI1 with pagination",
+        "isStarred() method returning boolean",
+        "All methods handle errors and convert to ValidationError/EntityNotFoundError",
+        "Transaction patterns follow ReactionRepository example"
+      ],
+      "stub_details": {
+        "approach": "Create class with method signatures throwing 'Not Implemented'",
+        "constructor": "constructor(table: GithubTable, starRecord: StarRecord, userRecord: UserRecord, repoRecord: RepoRecord)",
+        "methods": [
+          "async create(star: StarEntity): Promise<StarEntity>",
+          "async get(userName: string, repoOwner: string, repoName: string): Promise<StarEntity | undefined>",
+          "async delete(userName: string, repoOwner: string, repoName: string): Promise<void>",
+          "async listByUser(userName: string, options?: ListOptions): Promise<{ items: StarEntity[], offset?: string }>",
+          "async listByRepo(repoOwner: string, repoName: string, options?: ListOptions): Promise<{ items: StarEntity[], offset?: string }>",
+          "async isStarred(userName: string, repoOwner: string, repoName: string): Promise<boolean>"
+        ]
+      },
+      "test_details": {
+        "approach": "Integration tests with DynamoDB Local - write tests before implementation",
+        "test_structure": "Follow ReactionRepository.test.ts pattern with beforeAll, beforeEach, afterAll setup",
+        "scenarios": [
+          "create() creates star with valid user and repository",
+          "create() fails with non-existent user (ValidationError)",
+          "create() fails with non-existent repository (ValidationError)",
+          "create() is idempotent for duplicate stars",
+          "get() retrieves star by composite key",
+          "get() returns undefined for non-existent star",
+          "delete() removes star successfully",
+          "delete() is idempotent for non-existent star",
+          "listByUser() returns all repos starred by user with pagination",
+          "listByUser() returns empty array for user with no stars",
+          "listByRepo() returns all users who starred repo with pagination",
+          "listByRepo() returns empty array for repo with no stars",
+          "isStarred() returns true when star exists",
+          "isStarred() returns false when star doesn't exist"
+        ]
+      },
+      "implement_details": {
+        "approach": "Implement each method following ReactionRepository transaction patterns",
+        "create_implementation": [
+          "Build PutTransaction with item from star.toRecord()",
+          "Add condition: { attr: 'PK', exists: false } for duplicate check",
+          "Build ConditionCheck for UserRecord existence",
+          "Build ConditionCheck for RepoRecord existence",
+          "Execute transaction with all three operations",
+          "Fetch created item via get() method",
+          "Handle TransactionCanceledException and ConditionalCheckFailedException",
+          "Convert errors to ValidationError with context"
+        ],
+        "get_implementation": [
+          "Use table.build(QueryCommand) with StarRecord",
+          "Query partition: ACCOUNT#{userName}",
+          "Query range: begins_with STAR#{repoOwner}#{repoName}#",
+          "Limit 1 (since exact timestamp unknown)",
+          "Return StarEntity.fromRecord() or undefined"
+        ],
+        "delete_implementation": [
+          "Call get() to retrieve exact timestamp",
+          "If not found, return (idempotent)",
+          "Use starRecord.build(DeleteItemCommand).key(...).send()",
+          "No error if star doesn't exist"
+        ],
+        "listByUser_implementation": [
+          "Use table.build(QueryCommand).entities(starRecord)",
+          "Query partition: ACCOUNT#{userName}",
+          "Query range: begins_with STAR#",
+          "Apply options: reverse (default true), limit, exclusiveStartKey",
+          "Map results through StarEntity.fromRecord()",
+          "Return items and pagination offset"
+        ],
+        "listByRepo_implementation": [
+          "Use table.build(QueryCommand).entities(starRecord)",
+          "Query index: GSI1",
+          "Query partition: REPO#{repoOwner}#{repoName}",
+          "Query range: begins_with STAR#",
+          "Apply options: reverse (default true), limit, exclusiveStartKey",
+          "Map results through StarEntity.fromRecord()",
+          "Return items and pagination offset"
+        ],
+        "isStarred_implementation": [
+          "Call get() method",
+          "Return star !== undefined"
+        ]
+      }
+    },
+    "star_exports": {
+      "id": "star_exports",
+      "phase": "star_domain",
+      "order": 4,
+      "type": "export",
+      "file": "/Users/martinrichards/code/gh-ddb/src/repos/index.ts",
+      "dependencies": [
+        "star_repository"
+      ],
+      "tdd_steps": [
+        "stub",
+        "test",
+        "implement"
+      ],
+      "description": "Update export files to expose StarRepository and StarEntity",
+      "acceptance_criteria": [
+        "StarRepository exported from src/repos/index.ts",
+        "StarInput and StarFormatted types exported from src/repos/index.ts",
+        "StarEntity exported from src/services/entities/index.ts",
+        "StarEntityOpts, StarCreateRequest, StarResponse types exported from src/services/entities/index.ts",
+        "All exports compile without errors",
+        "No circular dependencies introduced"
+      ],
+      "stub_details": {
+        "approach": "Add export statements with commented placeholders",
+        "files_to_modify": [
+          "src/repos/index.ts - Add StarRepository and types",
+          "src/services/entities/index.ts - Add StarEntity and types"
+        ]
+      },
+      "test_details": {
+        "approach": "Verify exports are accessible and types are correct",
+        "validations": [
+          "Import StarRepository in test file",
+          "Import StarEntity in test file",
+          "Import all types successfully",
+          "TypeScript compilation succeeds",
+          "No circular dependency warnings"
+        ]
+      },
+      "implement_details": {
+        "approach": "Add actual export statements",
+        "repos_index_exports": [
+          "export { StarRepository } from './StarRepository';",
+          "export type { StarInput, StarFormatted } from './schema';"
+        ],
+        "entities_index_exports": [
+          "export { StarEntity } from './StarEntity';",
+          "export type { StarEntityOpts, StarCreateRequest, StarResponse } from './StarEntity';"
+        ]
+      }
+    }
+  },
+  "task_order": [
+    "star_schema",
+    "star_entity",
+    "star_repository",
+    "star_exports"
+  ],
+  "estimated_complexity": {
+    "total_tasks": 4,
+    "estimated_hours": 5.5,
+    "breakdown": {
+      "star_schema": 1.0,
+      "star_entity": 1.5,
+      "star_repository": 2.5,
+      "star_exports": 0.5
+    },
+    "risk_level": "low",
+    "risks": [
+      {
+        "risk": "Timestamp precision in composite keys causing rare collisions",
+        "impact": "low",
+        "mitigation": "ISO 8601 format provides millisecond precision, statistically negligible"
+      },
+      {
+        "risk": "Query without exact timestamp requires extra roundtrip for delete",
+        "impact": "low",
+        "mitigation": "Acceptable trade-off, limit 1 query is efficient"
+      },
+      {
+        "risk": "GSI1 hot partition for popular repositories",
+        "impact": "medium",
+        "mitigation": "DynamoDB auto-scaling handles load, monitor in production"
+      }
+    ]
+  },
+  "tdd_workflow": {
+    "description": "Stub-driven TDD approach with three phases per task",
+    "phases": {
+      "stub": {
+        "description": "Create interfaces, classes, and method signatures",
+        "output": "Complete structure with 'throw new Error(\"Not Implemented\")' stubs",
+        "benefits": [
+          "Immediate visibility of system structure",
+          "Clear dependency relationships",
+          "Early detection of integration issues",
+          "Type checking works immediately"
+        ]
+      },
+      "test": {
+        "description": "Write comprehensive tests defining expected behavior",
+        "output": "Full test suite that fails with 'Not Implemented' errors",
+        "benefits": [
+          "Documents expected behavior before implementation",
+          "Defines acceptance criteria through tests",
+          "Enables test-first development",
+          "Prevents over-engineering"
+        ]
+      },
+      "implement": {
+        "description": "Replace stubs with actual logic to make tests pass",
+        "output": "Working implementation with all tests passing",
+        "benefits": [
+          "Clear definition of done (all tests green)",
+          "Confidence in correctness",
+          "Built-in regression prevention",
+          "Refactoring safety"
+        ]
+      }
+    }
+  },
+  "implementation_patterns": {
+    "entity_pattern": {
+      "description": "Domain entity with four transformation methods",
+      "reference": "src/services/entities/ReactionEntity.ts",
+      "methods": [
+        "static fromRequest(data: StarCreateRequest): StarEntity",
+        "static fromRecord(record: StarFormatted): StarEntity",
+        "toRecord(): StarInput",
+        "toResponse(): StarResponse"
+      ],
+      "validation": "static validate(data: Partial<StarCreateRequest>): void"
+    },
+    "repository_pattern": {
+      "description": "Data access layer with DynamoDB transactions",
+      "reference": "src/repos/ReactionRepository.ts",
+      "transaction_pattern": [
+        "Build PutTransaction with item and conditions",
+        "Build ConditionCheck transactions for validation",
+        "Execute all transactions atomically",
+        "Handle errors and convert to domain exceptions"
+      ],
+      "error_handling": [
+        "TransactionCanceledException -> ValidationError",
+        "ConditionalCheckFailedException -> ValidationError",
+        "DynamoDBToolboxError -> ValidationError"
+      ]
+    },
+    "schema_pattern": {
+      "description": "DynamoDB Toolbox entity definition with computed keys",
+      "key_computation": "Use .link<typeof _schema>() for computed PK/SK/GSI keys",
+      "attribute_definition": "Define business attributes with .required() and .key() modifiers"
+    }
+  },
+  "dependencies": {
+    "internal": [
+      {
+        "entity": "User",
+        "file": "src/repos/schema.ts (UserRecord)",
+        "reason": "Validate star references existing user",
+        "status": "IMPLEMENTED"
+      },
+      {
+        "entity": "Repository",
+        "file": "src/repos/schema.ts (RepoRecord)",
+        "reason": "Validate star references existing repository",
+        "status": "IMPLEMENTED"
+      }
+    ],
+    "external": [
+      {
+        "library": "dynamodb-toolbox",
+        "version": "2.7.1",
+        "usage": "Entity definition, transactions, queries"
+      },
+      {
+        "library": "luxon",
+        "usage": "DateTime handling for starredAt"
+      }
+    ]
+  },
+  "validation_rules": {
+    "business_rules": [
+      "A user can star a repository only once (enforced by composite key)",
+      "Stars must reference existing users and repositories (validated via transaction)",
+      "Starring is idempotent - returns existing star if already exists",
+      "Unstarring is idempotent - no error if already unstarred"
+    ],
+    "input_validation": [
+      "userName must be a valid GitHub username",
+      "repoOwner must be a valid GitHub username or organization",
+      "repoName must be a valid repository name",
+      "starredAt must be a valid ISO 8601 timestamp if provided"
+    ]
+  },
+  "execution_strategy": {
+    "approach": "Sequential TDD with integrated testing",
+    "critical_path": [
+      "star_schema",
+      "star_entity",
+      "star_repository",
+      "star_exports"
+    ],
+    "parallel_groups": [],
+    "parallelization_note": "No meaningful parallelization possible - each task strictly depends on previous task outputs",
+    "tdd_integration": {
+      "star_schema": {
+        "stub": "Define StarRecord entity structure with computed keys",
+        "test": "Verify schema compiles and types are exported correctly",
+        "implement": "Complete attribute definitions and key computations"
+      },
+      "star_entity": {
+        "stub": "Create StarEntity class with method signatures throwing 'Not Implemented'",
+        "test": "Write unit tests for fromRequest, fromRecord, toRecord, toResponse, validate",
+        "implement": "Implement all transformation methods to pass tests"
+      },
+      "star_repository": {
+        "stub": "Create StarRepository class with method signatures throwing 'Not Implemented'",
+        "test": "Write integration tests for all CRUD operations using DynamoDB Local",
+        "implement": "Implement all methods with transaction patterns to pass tests"
+      },
+      "star_exports": {
+        "stub": "Add commented export placeholders",
+        "test": "Verify exports are accessible and types resolve",
+        "implement": "Uncomment exports and verify no circular dependencies"
+      }
+    },
+    "blocking_dependencies": {
+      "star_entity": ["star_schema"],
+      "star_repository": ["star_entity", "star_schema"],
+      "star_exports": ["star_repository"]
+    },
+    "recommended_workflow": "Execute tasks strictly in order. Each task follows three-phase TDD: (1) Stub all interfaces, (2) Write comprehensive tests, (3) Implement until tests pass. Cannot proceed to next task until current task's tests are green.",
+    "estimated_duration": {
+      "total_hours": 5.5,
+      "breakdown": {
+        "star_schema": 1.0,
+        "star_entity": 1.5,
+        "star_repository": 2.5,
+        "star_exports": 0.5
+      },
+      "parallelization_savings": 0.0,
+      "note": "Removed duplicate star_tests task - tests integrated into repository task per TDD principles"
+    },
+    "risk_mitigation": {
+      "schema_risk": "Verify computed key patterns match existing patterns (Counter, Reaction) before implementing entity",
+      "entity_risk": "Write comprehensive validation tests first - validation logic is complex with GitHub username rules",
+      "repository_risk": "Transaction pattern is critical - start with create() method tests, verify error handling thoroughly",
+      "integration_risk": "Run full test suite after each task completion to catch integration issues early"
+    }
+  },
+  "next_steps": [
+    "Execute tasks in order: star_schema -> star_entity -> star_repository -> star_exports",
+    "Follow TDD workflow: stub -> test -> implement for each task",
+    "Tests are written during the 'test' phase of each task, not as separate task",
+    "Run tests after each implementation to verify correctness",
+    "Update status.md to track progress through tasks"
+  ]
+}

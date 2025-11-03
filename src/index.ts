@@ -7,7 +7,13 @@ import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import swagger from "@fastify/swagger";
 import swaggerUI from "@fastify/swagger-ui";
 import { Config } from "./config";
-import { OrganizationRoutes, RepositoryRoutes, UserRoutes } from "./routes";
+import {
+	IssueRoutes,
+	OrganizationRoutes,
+	PullRequestRoutes,
+	RepositoryRoutes,
+	UserRoutes,
+} from "./routes";
 import { errorHandlerPlugin } from "./routes/errorHandler";
 import { buildServices, type Services, servicesPlugin } from "./services";
 
@@ -43,7 +49,7 @@ async function createApp({ config, services }: AppOpts) {
 			info: {
 				title: "GitHub DynamoDB API",
 				description:
-					"REST API for managing GitHub-like entities (Users, Organizations, Repositories) backed by DynamoDB",
+					"REST API for managing GitHub-like entities (Users, Organizations, Repositories, Issues, Pull Requests) backed by DynamoDB",
 				version: "1.0.0",
 			},
 			tags: [
@@ -53,6 +59,11 @@ async function createApp({ config, services }: AppOpts) {
 					description: "Organization management endpoints",
 				},
 				{ name: "Repository", description: "Repository management endpoints" },
+				{ name: "Issue", description: "Issue management endpoints" },
+				{
+					name: "Pull Request",
+					description: "Pull request management endpoints",
+				},
 			],
 		},
 	});
@@ -72,6 +83,14 @@ async function createApp({ config, services }: AppOpts) {
 	app.register(UserRoutes, { prefix: "/v1/users" });
 	app.register(OrganizationRoutes, { prefix: "/v1/organizations" });
 	app.register(RepositoryRoutes, { prefix: "/v1/repositories" });
+	// Register IssueRoutes nested under repositories
+	app.register(IssueRoutes, {
+		prefix: "/v1/repositories/:owner/:repoName/issues",
+	});
+	// Register PullRequestRoutes nested under repositories
+	app.register(PullRequestRoutes, {
+		prefix: "/v1/repositories/:owner/:repoName/pulls",
+	});
 
 	// Health check endpoint
 	app.get("/health", async () => {

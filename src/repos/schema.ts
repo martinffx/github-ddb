@@ -336,6 +336,9 @@ const PullRequestRecord = new Entity({
 				return `PR#OPEN#${reverseNumber}`;
 			}
 			const paddedNumber = String(pr_number).padStart(6, "0");
+			if (status === "merged") {
+				return `#PR#MERGED#${paddedNumber}`;
+			}
 			return `#PR#CLOSED#${paddedNumber}`;
 		}),
 	})),
@@ -343,6 +346,189 @@ const PullRequestRecord = new Entity({
 type PullRequestRecord = typeof PullRequestRecord;
 type PullRequestInput = InputItem<typeof PullRequestRecord>;
 type PullRequestFormatted = FormattedItem<typeof PullRequestRecord>;
+
+const IssueCommentRecord = new Entity({
+	name: "IssueComment",
+	table: GithubTable,
+	schema: item({
+		owner: string()
+			.required()
+			.validate((value: string) => /^[a-zA-Z0-9_-]+$/.test(value))
+			.key(),
+		repo_name: string()
+			.required()
+			.validate((value: string) => /^[a-zA-Z0-9_.-]+$/.test(value))
+			.key(),
+		issue_number: number().required().key(),
+		comment_id: string().required().key(),
+		body: string().required(),
+		author: string().required(),
+	}).and((_schema) => ({
+		PK: string()
+			.key()
+			.link<typeof _schema>(
+				({ owner, repo_name }) => `REPO#${owner}#${repo_name}`,
+			),
+		SK: string()
+			.key()
+			.link<typeof _schema>(
+				({ issue_number, comment_id }) =>
+					`ISSUE#${String(issue_number).padStart(6, "0")}#COMMENT#${comment_id}`,
+			),
+	})),
+} as const);
+type IssueCommentRecord = typeof IssueCommentRecord;
+type IssueCommentInput = InputItem<typeof IssueCommentRecord>;
+type IssueCommentFormatted = FormattedItem<typeof IssueCommentRecord>;
+
+const PRCommentRecord = new Entity({
+	name: "PRComment",
+	table: GithubTable,
+	schema: item({
+		owner: string()
+			.required()
+			.validate((value: string) => /^[a-zA-Z0-9_-]+$/.test(value))
+			.key(),
+		repo_name: string()
+			.required()
+			.validate((value: string) => /^[a-zA-Z0-9_.-]+$/.test(value))
+			.key(),
+		pr_number: number().required().key(),
+		comment_id: string().required().key(),
+		body: string().required(),
+		author: string().required(),
+	}).and((_schema) => ({
+		PK: string()
+			.key()
+			.link<typeof _schema>(
+				({ owner, repo_name }) => `REPO#${owner}#${repo_name}`,
+			),
+		SK: string()
+			.key()
+			.link<typeof _schema>(
+				({ pr_number, comment_id }) =>
+					`PR#${String(pr_number).padStart(6, "0")}#COMMENT#${comment_id}`,
+			),
+	})),
+} as const);
+type PRCommentRecord = typeof PRCommentRecord;
+type PRCommentInput = InputItem<typeof PRCommentRecord>;
+type PRCommentFormatted = FormattedItem<typeof PRCommentRecord>;
+
+const ReactionRecord = new Entity({
+	name: "Reaction",
+	table: GithubTable,
+	schema: item({
+		owner: string()
+			.required()
+			.validate((value: string) => /^[a-zA-Z0-9_-]+$/.test(value))
+			.key(),
+		repo_name: string()
+			.required()
+			.validate((value: string) => /^[a-zA-Z0-9_.-]+$/.test(value))
+			.key(),
+		target_type: string()
+			.required()
+			.validate((value: string) =>
+				["ISSUE", "PR", "ISSUECOMMENT", "PRCOMMENT"].includes(value),
+			)
+			.key(),
+		target_id: string().required().key(),
+		user: string().required().key(),
+		emoji: string()
+			.required()
+			.validate((value: string) => /^[\p{Emoji}]+$/u.test(value))
+			.key(),
+	}).and((_schema) => ({
+		PK: string()
+			.key()
+			.link<typeof _schema>(
+				({ owner, repo_name }) => `REPO#${owner}#${repo_name}`,
+			),
+		SK: string()
+			.key()
+			.link<typeof _schema>(
+				({ target_type, target_id, user, emoji }) =>
+					`REACTION#${target_type}#${target_id}#${user}#${emoji}`,
+			),
+	})),
+} as const);
+type ReactionRecord = typeof ReactionRecord;
+type ReactionInput = InputItem<typeof ReactionRecord>;
+type ReactionFormatted = FormattedItem<typeof ReactionRecord>;
+
+const ForkRecord = new Entity({
+	name: "Fork",
+	table: GithubTable,
+	schema: item({
+		original_owner: string()
+			.required()
+			.validate((value: string) => /^[a-zA-Z0-9_-]+$/.test(value))
+			.key(),
+		original_repo: string()
+			.required()
+			.validate((value: string) => /^[a-zA-Z0-9_.-]+$/.test(value))
+			.key(),
+		fork_owner: string()
+			.required()
+			.validate((value: string) => /^[a-zA-Z0-9_-]+$/.test(value))
+			.key(),
+		fork_repo: string()
+			.required()
+			.validate((value: string) => /^[a-zA-Z0-9_.-]+$/.test(value)),
+	}).and((_schema) => ({
+		PK: string()
+			.key()
+			.link<typeof _schema>(
+				({ original_owner, original_repo }) =>
+					`REPO#${original_owner}#${original_repo}`,
+			),
+		SK: string()
+			.key()
+			.link<typeof _schema>(({ fork_owner }) => `FORK#${fork_owner}`),
+		GSI2PK: string().link<typeof _schema>(
+			({ original_owner, original_repo }) =>
+				`REPO#${original_owner}#${original_repo}`,
+		),
+		GSI2SK: string().link<typeof _schema>(
+			({ fork_owner }) => `FORK#${fork_owner}`,
+		),
+	})),
+} as const);
+type ForkRecord = typeof ForkRecord;
+type ForkInput = InputItem<typeof ForkRecord>;
+type ForkFormatted = FormattedItem<typeof ForkRecord>;
+
+const StarRecord = new Entity({
+	name: "Star",
+	table: GithubTable,
+	schema: item({
+		username: string()
+			.required()
+			.validate((value: string) => /^[a-zA-Z0-9_-]+$/.test(value))
+			.key(),
+		repo_owner: string()
+			.required()
+			.validate((value: string) => /^[a-zA-Z0-9_-]+$/.test(value))
+			.key(),
+		repo_name: string()
+			.required()
+			.validate((value: string) => /^[a-zA-Z0-9_.-]+$/.test(value))
+			.key(),
+	}).and((_schema) => ({
+		PK: string()
+			.key()
+			.link<typeof _schema>(({ username }) => `ACCOUNT#${username}`),
+		SK: string()
+			.key()
+			.link<typeof _schema>(
+				({ repo_owner, repo_name }) => `STAR#${repo_owner}#${repo_name}`,
+			),
+	})),
+} as const);
+type StarRecord = typeof StarRecord;
+type StarInput = InputItem<typeof StarRecord>;
+type StarFormatted = FormattedItem<typeof StarRecord>;
 
 type GithubSchema = {
 	table: GithubTable;
@@ -352,6 +538,11 @@ type GithubSchema = {
 	counter: CounterRecord;
 	issue: IssueRecord;
 	pullRequest: PullRequestRecord;
+	issueComment: IssueCommentRecord;
+	prComment: PRCommentRecord;
+	reaction: ReactionRecord;
+	fork: ForkRecord;
+	star: StarRecord;
 };
 
 const initializeSchema = (
@@ -374,6 +565,11 @@ const initializeSchema = (
 		counter: CounterRecord,
 		issue: IssueRecord,
 		pullRequest: PullRequestRecord,
+		issueComment: IssueCommentRecord,
+		prComment: PRCommentRecord,
+		reaction: ReactionRecord,
+		fork: ForkRecord,
+		star: StarRecord,
 	};
 };
 
@@ -404,6 +600,11 @@ export type {
 	CounterRecord,
 	IssueRecord,
 	PullRequestRecord,
+	IssueCommentRecord,
+	PRCommentRecord,
+	ReactionRecord,
+	ForkRecord,
+	StarRecord,
 	UserInput,
 	UserFormatted,
 	OrganizationInput,
@@ -416,4 +617,14 @@ export type {
 	IssueFormatted,
 	PullRequestInput,
 	PullRequestFormatted,
+	IssueCommentInput,
+	IssueCommentFormatted,
+	PRCommentInput,
+	PRCommentFormatted,
+	ReactionInput,
+	ReactionFormatted,
+	ForkInput,
+	ForkFormatted,
+	StarInput,
+	StarFormatted,
 };

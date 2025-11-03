@@ -136,3 +136,138 @@ export type RepositoryCreateRequest = Static<typeof RepositoryCreateSchema>;
 export type RepositoryUpdateRequest = Static<typeof RepositoryUpdateSchema>;
 export type RepositoryResponse = Static<typeof RepositoryResponseSchema>;
 export type PaginatedResponse<T> = { items: T[]; offset?: string };
+
+/**
+ * Issue Schemas
+ */
+export const IssueCreateSchema = Type.Object({
+	title: Type.String({ minLength: 1, maxLength: 255 }),
+	body: Type.Optional(Type.String()),
+	status: Type.Optional(
+		Type.Union([Type.Literal("open"), Type.Literal("closed")]),
+	),
+	author: Type.String({ minLength: 1 }),
+	assignees: Type.Optional(Type.Array(Type.String())),
+	labels: Type.Optional(Type.Array(Type.String())),
+});
+
+export const IssueUpdateSchema = Type.Partial(
+	Type.Object({
+		title: Type.String({ minLength: 1, maxLength: 255 }),
+		body: Type.String(),
+		status: Type.Union([Type.Literal("open"), Type.Literal("closed")]),
+		assignees: Type.Array(Type.String()),
+		labels: Type.Array(Type.String()),
+	}),
+);
+
+export const IssueResponseSchema = Type.Intersect([
+	BaseResponseSchema,
+	Type.Object({
+		owner: Type.String(),
+		repo_name: Type.String(),
+		issue_number: Type.Number(),
+		title: Type.String(),
+		body: Type.Optional(Type.String()),
+		status: Type.String(),
+		author: Type.String(),
+		assignees: Type.Array(Type.String()),
+		labels: Type.Array(Type.String()),
+	}),
+]);
+
+export const IssueParamsSchema = Type.Object({
+	owner: Type.String(),
+	repoName: Type.String(),
+	issueNumber: Type.String({ pattern: "^[0-9]+$" }),
+});
+
+export const IssueListParamsSchema = Type.Object({
+	owner: Type.String(),
+	repoName: Type.String(),
+});
+
+export const IssueListQuerySchema = Type.Object({
+	status: Type.Optional(
+		Type.Union([Type.Literal("open"), Type.Literal("closed")]),
+	),
+});
+
+export type IssueCreateRequest = Static<typeof IssueCreateSchema>;
+export type IssueUpdateRequest = Static<typeof IssueUpdateSchema>;
+export type IssueResponse = Static<typeof IssueResponseSchema>;
+
+/**
+ * Pull Request Schemas
+ */
+export const PullRequestCreateSchema = Type.Object({
+	title: Type.String({ minLength: 1, maxLength: 255 }),
+	body: Type.Optional(Type.String()),
+	status: Type.Optional(
+		Type.Union([
+			Type.Literal("open"),
+			Type.Literal("closed"),
+			Type.Literal("merged"),
+		]),
+	),
+	author: Type.String({ minLength: 1 }),
+	source_branch: Type.String({ minLength: 1 }),
+	target_branch: Type.String({ minLength: 1 }),
+	merge_commit_sha: Type.Optional(Type.String()),
+});
+
+export const PullRequestUpdateSchema = Type.Partial(
+	Type.Object({
+		title: Type.String({ minLength: 1, maxLength: 255 }),
+		body: Type.String(),
+		status: Type.Union([
+			Type.Literal("open"),
+			Type.Literal("closed"),
+			Type.Literal("merged"),
+		]),
+		source_branch: Type.String({ minLength: 1 }),
+		target_branch: Type.String({ minLength: 1 }),
+		merge_commit_sha: Type.String(),
+	}),
+);
+
+export const PullRequestResponseSchema = Type.Intersect([
+	BaseResponseSchema,
+	Type.Object({
+		owner: Type.String(),
+		repo_name: Type.String(),
+		pr_number: Type.Number(),
+		title: Type.String(),
+		body: Type.Optional(Type.String()),
+		status: Type.String(),
+		author: Type.String(),
+		source_branch: Type.String(),
+		target_branch: Type.String(),
+		merge_commit_sha: Type.Optional(Type.String()),
+	}),
+]);
+
+export const PullRequestParamsSchema = Type.Object({
+	owner: Type.String(),
+	repoName: Type.String(),
+	prNumber: Type.String({ pattern: "^[0-9]+$" }),
+});
+
+export const PullRequestListParamsSchema = Type.Object({
+	owner: Type.String(),
+	repoName: Type.String(),
+});
+
+export const PullRequestListQuerySchema = Type.Object({
+	status: Type.Optional(
+		Type.Union([
+			Type.Literal("open"),
+			Type.Literal("closed"),
+			Type.Literal("merged"),
+		]),
+	),
+});
+
+export type PullRequestCreateRequest = Static<typeof PullRequestCreateSchema>;
+export type PullRequestUpdateRequest = Static<typeof PullRequestUpdateSchema>;
+export type PullRequestResponse = Static<typeof PullRequestResponseSchema>;

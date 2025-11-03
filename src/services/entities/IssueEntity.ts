@@ -27,6 +27,22 @@ type IssueCreateRequest = {
 	labels?: string[];
 };
 
+type IssueUpdateRequest = {
+	title?: string;
+	body?: string;
+	status?: "open" | "closed";
+	assignees?: string[];
+	labels?: string[];
+};
+
+type UpdateIssueEntityOpts = {
+	title?: string;
+	body?: string;
+	status?: "open" | "closed";
+	assignees?: string[];
+	labels?: string[];
+};
+
 type IssueResponse = {
 	owner: string;
 	repo_name: string;
@@ -137,8 +153,8 @@ class IssueEntity {
 			author: this.author,
 			// Only include Sets if arrays are not empty (DynamoDB doesn't allow empty Sets)
 			assignees:
-				this.assignees.length > 0 ? new Set(this.assignees) : undefined,
-			labels: this.labels.length > 0 ? new Set(this.labels) : undefined,
+				this.assignees && this.assignees.length > 0 ? new Set(this.assignees) : undefined,
+			labels: this.labels && this.labels.length > 0 ? new Set(this.labels) : undefined,
 		};
 	}
 
@@ -160,6 +176,50 @@ class IssueEntity {
 			created_at: this.created.toISO() ?? "",
 			updated_at: this.modified.toISO() ?? "",
 		};
+	}
+
+	/**
+	 * Update issue with new data
+	 * Returns new entity with updated fields and new modified timestamp
+	 */
+	public updateIssue({
+		title,
+		body,
+		status,
+		assignees,
+		labels,
+	}: UpdateIssueEntityOpts): IssueEntity {
+		// Validate title if provided
+		if (title !== undefined) {
+			if (!title) {
+				throw new ValidationError("title", "Title is required");
+			}
+			if (title.length > 255) {
+				throw new ValidationError(
+					"title",
+					"Title must be 255 characters or less",
+				);
+			}
+		}
+
+		// Validate status if provided
+		if (status !== undefined && status !== "open" && status !== "closed") {
+			throw new ValidationError("status", "Status must be 'open' or 'closed'");
+		}
+
+		return new IssueEntity({
+			owner: this.owner,
+			repoName: this.repoName,
+			issueNumber: this.issueNumber,
+			author: this.author, // Author never changes
+			title: title ?? this.title,
+			body: body !== undefined ? body : this.body,
+			status: status ?? this.status,
+			assignees: assignees ?? this.assignees,
+			labels: labels ?? this.labels,
+			created: this.created, // Preserve original
+			modified: DateTime.utc(), // Update to now
+		});
 	}
 
 	/**
@@ -206,4 +266,9 @@ class IssueEntity {
 }
 
 export { IssueEntity };
-export type { IssueEntityOpts, IssueCreateRequest, IssueResponse };
+export type {
+	IssueEntityOpts,
+	IssueCreateRequest,
+	IssueUpdateRequest,
+	IssueResponse,
+};

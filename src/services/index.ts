@@ -3,13 +3,17 @@ import type { FastifyInstance, FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
 import type { Config } from "../config";
 import {
+	IssueRepository,
 	OrganizationRepository,
+	PullRequestRepository,
 	RepoRepository,
 	UserRepository,
 } from "../repos";
 import { initializeSchema } from "../repos/schema";
 import {
+	IssueService,
 	OrganizationService,
+	PullRequestService,
 	RepositoryService,
 	UserService,
 } from "../services";
@@ -19,6 +23,8 @@ export interface Services {
 	userService: UserService;
 	organizationService: OrganizationService;
 	repositoryService: RepositoryService;
+	issueService: IssueService;
+	pullRequestService: PullRequestService;
 }
 
 // Extend Fastify types to include our services decorator
@@ -59,16 +65,32 @@ export const buildServices = async (config: Config): Promise<Services> => {
 		schema.user,
 		schema.organization,
 	);
+	const issueRepository = new IssueRepository(
+		schema.table,
+		schema.issue,
+		schema.counter,
+		schema.repository,
+	);
+	const pullRequestRepository = new PullRequestRepository(
+		schema.table,
+		schema.pullRequest,
+		schema.counter,
+		schema.repository,
+	);
 
 	// Create services
 	const userService = new UserService(userRepository);
 	const organizationService = new OrganizationService(organizationRepository);
 	const repositoryService = new RepositoryService(repoRepository);
+	const issueService = new IssueService(issueRepository);
+	const pullRequestService = new PullRequestService(pullRequestRepository);
 
 	return {
 		userService,
 		organizationService,
 		repositoryService,
+		issueService,
+		pullRequestService,
 	};
 };
 
@@ -89,3 +111,5 @@ export * from "./entities";
 export * from "./UserService";
 export * from "./OrganizationService";
 export * from "./RepositoryService";
+export * from "./IssueService";
+export * from "./PullRequestService";

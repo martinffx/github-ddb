@@ -1,0 +1,182 @@
+{
+	"feature": "stars",
+	"phase": "2.5 - Star Relationships",
+	"dependencies": ["core-entities (User, Organization, Repository)"],
+	"implementation_status": "NOT STARTED",
+	"user_story": "As a GitHub user, I want to star repositories I'm interested in, so that I can bookmark repos for later reference and show appreciation for projects I find valuable.",
+	"acceptance_criteria": [
+		{
+			"id": "AC-1",
+			"title": "User Can Star a Repository",
+			"given": "a user exists and a repository exists",
+			"when": "the user stars the repository",
+			"then": "a Star relationship is created with PK=ACCOUNT#{username} and SK=STAR#{owner}#{repo}#{timestamp}"
+		},
+		{
+			"id": "AC-2",
+			"title": "User Can Unstar a Repository",
+			"given": "a user has starred a repository",
+			"when": "the user unstars the repository",
+			"then": "the Star relationship is removed"
+		},
+		{
+			"id": "AC-3",
+			"title": "List Repositories a User Has Starred",
+			"given": "a user has starred multiple repositories",
+			"when": "querying the user's starred repos",
+			"then": "all starred repositories are returned sorted by star timestamp (most recent first)"
+		},
+		{
+			"id": "AC-4",
+			"title": "List Users Who Starred a Repository",
+			"given": "multiple users have starred a repository",
+			"when": "querying the repository's stargazers",
+			"then": "all users who starred the repo are returned via GSI1"
+		},
+		{
+			"id": "AC-5",
+			"title": "Check if User Has Starred a Repository",
+			"given": "a user and repository",
+			"when": "checking star status",
+			"then": "a direct GetItem query determines if the relationship exists"
+		},
+		{
+			"id": "AC-6",
+			"title": "Prevent Duplicate Stars",
+			"given": "a user has already starred a repository",
+			"when": "attempting to star it again",
+			"then": "the operation is idempotent (no duplicate created, no error thrown)"
+		}
+	],
+	"business_rules": [
+		{
+			"id": "BR-1",
+			"description": "A user can star a repository only once",
+			"rationale": "Prevents duplicate relationships and maintains data integrity"
+		},
+		{
+			"id": "BR-2",
+			"description": "Stars must reference valid users and repositories",
+			"rationale": "Referential integrity - prevents orphaned stars"
+		},
+		{
+			"id": "BR-3",
+			"description": "Timestamps must be recorded when stars are created",
+			"rationale": "Enables chronological sorting and audit trails"
+		},
+		{
+			"id": "BR-4",
+			"description": "Unstarring is idempotent - no error if already unstarred",
+			"rationale": "Improves API usability and prevents client-side complexity"
+		},
+		{
+			"id": "BR-5",
+			"description": "Stars are bidirectional queryable (user→repos, repo→users)",
+			"rationale": "Required for both 'my starred repos' and 'repo stargazers' features"
+		}
+	],
+	"scope": {
+		"included": [
+			"Star entity with DynamoDB-Toolbox schema",
+			"StarEntity class with transformation methods",
+			"StarRepository with bidirectional queries",
+			"Pagination support for list operations",
+			"Idempotent star/unstar operations",
+			"Referential integrity validation"
+		],
+		"excluded": [
+			"Star count aggregation (can be computed from queries)",
+			"Star activity feed",
+			"Star notifications",
+			"API rate limiting for starring",
+			"Bulk star operations"
+		]
+	},
+	"aligns_with": "GitHub data model implementation using DynamoDB single table design",
+	"technical_details": {
+		"access_pattern": "Adjacency List Pattern with GSI for bidirectional queries",
+		"key_design": {
+			"direction_1": {
+				"description": "User → Repos (Main Table)",
+				"pk": "ACCOUNT#{username}",
+				"sk": "STAR#{repo_owner}#{repo_name}#{timestamp}"
+			},
+			"direction_2": {
+				"description": "Repo → Users (GSI1)",
+				"gsi1pk": "REPO#{repo_owner}#{repo_name}",
+				"gsi1sk": "STAR#{username}#{timestamp}"
+			}
+		},
+		"access_patterns": [
+			{
+				"pattern": "Star a repository",
+				"type": "PutItem",
+				"index": "Main",
+				"pk": "ACCOUNT#{username}",
+				"sk": "STAR#{owner}#{repo}#{timestamp}"
+			},
+			{
+				"pattern": "Unstar a repository",
+				"type": "DeleteItem",
+				"index": "Main",
+				"pk": "ACCOUNT#{username}",
+				"sk": "STAR#{owner}#{repo}#{timestamp}"
+			},
+			{
+				"pattern": "List user's starred repos",
+				"type": "Query",
+				"index": "Main",
+				"pk": "ACCOUNT#{username}",
+				"sk_filter": "begins_with(STAR#)"
+			},
+			{
+				"pattern": "List repo stargazers",
+				"type": "Query",
+				"index": "GSI1",
+				"pk": "REPO#{owner}#{repo}",
+				"sk_filter": "begins_with(STAR#)"
+			},
+			{
+				"pattern": "Check if starred",
+				"type": "GetItem or Query",
+				"index": "Main",
+				"pk": "ACCOUNT#{username}",
+				"sk": "STAR#{owner}#{repo}#{timestamp}",
+				"note": "Use Query with beginsWith since exact timestamp unknown"
+			}
+		],
+		"repository_methods": [
+			"create(star: StarEntity): Promise<StarEntity>",
+			"get(userName, repoOwner, repoName): Promise<StarEntity | undefined>",
+			"delete(userName, repoOwner, repoName): Promise<void>",
+			"listByUser(userName, options?): Promise<PaginatedResponse<StarEntity>>",
+			"listByRepo(repoOwner, repoName, options?): Promise<PaginatedResponse<StarEntity>>",
+			"isStarred(userName, repoOwner, repoName): Promise<boolean>"
+		],
+		"implementation_sequence": [
+			"Add Star entity to DynamoDB-Toolbox schema (/src/repos/schema.ts)",
+			"Create StarEntity class (/src/services/entities/StarEntity.ts)",
+			"Create StarRepository class (/src/repos/StarRepository.ts)",
+			"Write comprehensive tests (/src/repos/StarRepository.test.ts)",
+			"Add to schema exports (update GithubSchema type and initializeSchema function)",
+			"Optional: Create API endpoints (/src/routes/StarRoutes.ts)"
+		]
+	},
+	"testing_strategy": {
+		"unit_tests": [
+			"StarEntity transformation methods (fromRequest, toRecord, toResponse)",
+			"Key generation logic (PK, SK, GSI1PK, GSI1SK)"
+		],
+		"integration_tests": [
+			"Create star with valid user and repo",
+			"Create star with non-existent user (should fail)",
+			"Create star with non-existent repo (should fail)",
+			"Create duplicate star (should be idempotent)",
+			"Delete star (should succeed)",
+			"Delete non-existent star (should be idempotent)",
+			"List user's starred repos (with pagination)",
+			"List repo stargazers (with pagination)",
+			"Check star status"
+		]
+	}
+}
