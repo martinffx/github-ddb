@@ -177,7 +177,8 @@ class ReactionEntity {
 		}
 
 		// Validate emoji format (must be valid unicode emoji)
-		if (!/^[\p{Emoji}]+$/u.test(data.emoji)) {
+		// Include Emoji_Component to support variation selectors (U+FE0F) and other emoji modifiers
+		if (!/^[\p{Emoji}\p{Emoji_Component}]+$/u.test(data.emoji)) {
 			throw new ValidationError("emoji", "Emoji must be a valid unicode emoji");
 		}
 	}
