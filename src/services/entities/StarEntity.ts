@@ -107,12 +107,22 @@ class StarEntity {
 			throw new ValidationError("username", "Username is required");
 		}
 
-		const repoOwner = "repoOwner" in data ? data.repoOwner : data.repo_owner;
+		const repoOwner =
+			"repoOwner" in data
+				? data.repoOwner
+				: "repo_owner" in data
+					? data.repo_owner
+					: undefined;
 		if (!repoOwner) {
 			throw new ValidationError("repo_owner", "Repository owner is required");
 		}
 
-		const repoName = "repoName" in data ? data.repoName : data.repo_name;
+		const repoName =
+			"repoName" in data
+				? data.repoName
+				: "repo_name" in data
+					? data.repo_name
+					: undefined;
 		if (!repoName) {
 			throw new ValidationError("repo_name", "Repository name is required");
 		}

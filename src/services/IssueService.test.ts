@@ -1,5 +1,9 @@
 import { IssueService } from "./IssueService";
-import type { IssueRepository } from "../repos";
+import type {
+	IssueRepository,
+	IssueCommentRepository,
+	ReactionRepository,
+} from "../repos";
 import { IssueEntity } from "./entities";
 import { EntityNotFoundError, ValidationError } from "../shared";
 import type { IssueCreateRequest, IssueUpdateRequest } from "../routes/schema";
@@ -13,7 +17,27 @@ describe("IssueService", () => {
 		update: jest.fn(),
 		delete: jest.fn(),
 	} as unknown as IssueRepository);
-	const issueService = new IssueService(mockIssueRepo);
+
+	const mockIssueCommentRepo = jest.mocked<IssueCommentRepository>({
+		create: jest.fn(),
+		get: jest.fn(),
+		listByIssue: jest.fn(),
+		update: jest.fn(),
+		delete: jest.fn(),
+	} as unknown as IssueCommentRepository);
+
+	const mockReactionRepo = jest.mocked<ReactionRepository>({
+		create: jest.fn(),
+		get: jest.fn(),
+		listByTarget: jest.fn(),
+		delete: jest.fn(),
+	} as unknown as ReactionRepository);
+
+	const issueService = new IssueService(
+		mockIssueRepo,
+		mockIssueCommentRepo,
+		mockReactionRepo,
+	);
 
 	beforeEach(() => {
 		jest.resetAllMocks();

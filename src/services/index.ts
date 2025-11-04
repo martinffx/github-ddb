@@ -16,14 +16,10 @@ import {
 } from "../repos";
 import { initializeSchema } from "../repos/schema";
 import {
-	CommentService,
-	ForkService,
 	IssueService,
 	OrganizationService,
 	PullRequestService,
-	ReactionService,
 	RepositoryService,
-	StarService,
 	UserService,
 } from "../services";
 
@@ -34,10 +30,6 @@ export interface Services {
 	repositoryService: RepositoryService;
 	issueService: IssueService;
 	pullRequestService: PullRequestService;
-	commentService: CommentService;
-	reactionService: ReactionService;
-	forkService: ForkService;
-	starService: StarService;
 }
 
 // Extend Fastify types to include our services decorator
@@ -123,16 +115,21 @@ export const buildServices = async (config: Config): Promise<Services> => {
 	// Create services
 	const userService = new UserService(userRepository);
 	const organizationService = new OrganizationService(organizationRepository);
-	const repositoryService = new RepositoryService(repoRepository);
-	const issueService = new IssueService(issueRepository);
-	const pullRequestService = new PullRequestService(pullRequestRepository);
-	const commentService = new CommentService(
-		issueCommentRepository,
-		prCommentRepository,
+	const repositoryService = new RepositoryService(
+		repoRepository,
+		starRepository,
+		forkRepository,
 	);
-	const reactionService = new ReactionService(reactionRepository);
-	const forkService = new ForkService(forkRepository);
-	const starService = new StarService(starRepository);
+	const issueService = new IssueService(
+		issueRepository,
+		issueCommentRepository,
+		reactionRepository,
+	);
+	const pullRequestService = new PullRequestService(
+		pullRequestRepository,
+		prCommentRepository,
+		reactionRepository,
+	);
 
 	return {
 		userService,
@@ -140,10 +137,6 @@ export const buildServices = async (config: Config): Promise<Services> => {
 		repositoryService,
 		issueService,
 		pullRequestService,
-		commentService,
-		reactionService,
-		forkService,
-		starService,
 	};
 };
 
@@ -166,7 +159,3 @@ export * from "./OrganizationService";
 export * from "./RepositoryService";
 export * from "./IssueService";
 export * from "./PullRequestService";
-export * from "./CommentService";
-export * from "./ReactionService";
-export * from "./ForkService";
-export * from "./StarService";

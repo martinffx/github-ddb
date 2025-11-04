@@ -5,6 +5,7 @@ import type {
 	OrganizationService,
 	RepositoryService,
 	UserService,
+	PullRequestService,
 } from "../services";
 import type { IssueService } from "../services/IssueService";
 import type { IssueCreateRequest, IssueUpdateRequest } from "./schema";
@@ -25,6 +26,7 @@ describe("IssueRoutes", () => {
 		organizationService: {} as unknown as OrganizationService,
 		repositoryService: {} as unknown as RepositoryService,
 		issueService: mockIssueService,
+		pullRequestService: {} as unknown as PullRequestService,
 	};
 
 	beforeEach(() => {

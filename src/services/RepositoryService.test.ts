@@ -1,5 +1,5 @@
 import { RepositoryService } from "./RepositoryService";
-import type { RepoRepository } from "../repos";
+import type { RepoRepository, StarRepository, ForkRepository } from "../repos";
 import { RepositoryEntity } from "./entities";
 import {
 	DuplicateEntityError,
@@ -19,7 +19,26 @@ describe("RepositoryService", () => {
 		deleteRepo: jest.fn(),
 		listByOwner: jest.fn(),
 	} as unknown as RepoRepository);
-	const repoService = new RepositoryService(mockRepoRepo);
+
+	const mockStarRepo = jest.mocked<StarRepository>({
+		create: jest.fn(),
+		delete: jest.fn(),
+		listStarsByUser: jest.fn(),
+		isStarred: jest.fn(),
+	} as unknown as StarRepository);
+
+	const mockForkRepo = jest.mocked<ForkRepository>({
+		create: jest.fn(),
+		get: jest.fn(),
+		delete: jest.fn(),
+		listForksOfRepo: jest.fn(),
+	} as unknown as ForkRepository);
+
+	const repoService = new RepositoryService(
+		mockRepoRepo,
+		mockStarRepo,
+		mockForkRepo,
+	);
 
 	beforeEach(() => {
 		jest.resetAllMocks();

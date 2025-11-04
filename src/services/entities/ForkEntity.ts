@@ -112,13 +112,21 @@ class ForkEntity {
 	): void {
 		// Validate required fields
 		const originalOwner =
-			"originalOwner" in data ? data.originalOwner : data.original_owner;
+			"originalOwner" in data
+				? data.originalOwner
+				: "original_owner" in data
+					? data.original_owner
+					: undefined;
 		if (!originalOwner) {
 			throw new ValidationError("original_owner", "Original owner is required");
 		}
 
 		const originalRepo =
-			"originalRepo" in data ? data.originalRepo : data.original_repo;
+			"originalRepo" in data
+				? data.originalRepo
+				: "original_repo" in data
+					? data.original_repo
+					: undefined;
 		if (!originalRepo) {
 			throw new ValidationError(
 				"original_repo",
@@ -126,12 +134,22 @@ class ForkEntity {
 			);
 		}
 
-		const forkOwner = "forkOwner" in data ? data.forkOwner : data.fork_owner;
+		const forkOwner =
+			"forkOwner" in data
+				? data.forkOwner
+				: "fork_owner" in data
+					? data.fork_owner
+					: undefined;
 		if (!forkOwner) {
 			throw new ValidationError("fork_owner", "Fork owner is required");
 		}
 
-		const forkRepo = "forkRepo" in data ? data.forkRepo : data.fork_repo;
+		const forkRepo =
+			"forkRepo" in data
+				? data.forkRepo
+				: "fork_repo" in data
+					? data.fork_repo
+					: undefined;
 		if (!forkRepo) {
 			throw new ValidationError(
 				"fork_repo",

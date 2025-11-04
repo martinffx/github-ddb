@@ -1,7 +1,12 @@
 import type Fastify from "fastify";
 import { createApp } from "..";
 import { Config } from "../config";
-import type { OrganizationService, UserService } from "../services";
+import type {
+	OrganizationService,
+	UserService,
+	IssueService,
+	PullRequestService,
+} from "../services";
 import type { RepositoryService } from "../services/RepositoryService";
 import type {
 	RepositoryCreateRequest,
@@ -27,6 +32,8 @@ describe("RepositoryRoutes", () => {
 		userService: {} as unknown as UserService,
 		organizationService: {} as unknown as OrganizationService,
 		repositoryService: mockRepositoryService,
+		issueService: {} as unknown as IssueService,
+		pullRequestService: {} as unknown as PullRequestService,
 	};
 
 	beforeEach(() => {

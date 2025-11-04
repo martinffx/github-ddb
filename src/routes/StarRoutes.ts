@@ -13,8 +13,8 @@ import { Type } from "@sinclair/typebox";
 export const StarRoutes: FastifyPluginAsync = async (
 	fastify: FastifyInstance,
 ) => {
-	// Get starService from fastify decorator
-	const { starService } = fastify.services;
+	// Get repositoryService from fastify decorator (stars are now managed by repositoryService)
+	const { repositoryService } = fastify.services;
 
 	/**
 	 * PUT /:owner/:repoName - Star a repository
@@ -42,7 +42,7 @@ export const StarRoutes: FastifyPluginAsync = async (
 			const { owner, repoName } = request.params;
 			const { username } = request.body;
 
-			await starService.starRepository(username, owner, repoName);
+			await repositoryService.starRepository(username, owner, repoName);
 
 			return reply.code(204).send();
 		},
@@ -74,7 +74,7 @@ export const StarRoutes: FastifyPluginAsync = async (
 			const { owner, repoName } = request.params;
 			const { username } = request.body;
 
-			await starService.unstarRepository(username, owner, repoName);
+			await repositoryService.unstarRepository(username, owner, repoName);
 
 			return reply.code(204).send();
 		},
@@ -88,8 +88,8 @@ export const StarRoutes: FastifyPluginAsync = async (
 export const StarUserRoutes: FastifyPluginAsync = async (
 	fastify: FastifyInstance,
 ) => {
-	// Get starService from fastify decorator
-	const { starService } = fastify.services;
+	// Get repositoryService from fastify decorator (stars are now managed by repositoryService)
+	const { repositoryService } = fastify.services;
 
 	/**
 	 * GET /:username/starred - List starred repositories for a user
@@ -114,7 +114,7 @@ export const StarUserRoutes: FastifyPluginAsync = async (
 		},
 		async (request, reply) => {
 			const { username } = request.params;
-			const result = await starService.listUserStars(username);
+			const result = await repositoryService.listUserStars(username);
 			return reply.code(200).send(result);
 		},
 	);
@@ -127,8 +127,8 @@ export const StarUserRoutes: FastifyPluginAsync = async (
 export const StarRepoRoutes: FastifyPluginAsync = async (
 	fastify: FastifyInstance,
 ) => {
-	// Get starService from fastify decorator
-	const { starService } = fastify.services;
+	// Get repositoryService from fastify decorator (stars are now managed by repositoryService)
+	const { repositoryService } = fastify.services;
 
 	/**
 	 * GET /:owner/:repoName/stargazers - Check if starred
@@ -162,7 +162,11 @@ export const StarRepoRoutes: FastifyPluginAsync = async (
 			const { owner, repoName } = request.params;
 			const { username } = request.query;
 
-			const starred = await starService.isStarred(username, owner, repoName);
+			const starred = await repositoryService.isStarred(
+				username,
+				owner,
+				repoName,
+			);
 
 			return reply.code(200).send({ starred });
 		},

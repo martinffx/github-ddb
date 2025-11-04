@@ -126,9 +126,13 @@ describe("ReactionRepository", () => {
 			const issue = new IssueEntity({
 				owner,
 				repoName,
+				issueNumber: 1,
 				title: "Test Issue for Reaction",
 				body: "Test body",
+				status: "open",
 				author: "testuser",
+				assignees: [],
+				labels: [],
 			});
 			const createdIssue = await issueRepo.create(issue);
 
@@ -182,8 +186,10 @@ describe("ReactionRepository", () => {
 			const pr = new PullRequestEntity({
 				owner,
 				repoName,
+				prNumber: 1,
 				title: "Test PR for Reaction",
 				body: "Test body",
+				status: "open",
 				author: "testuser",
 				sourceBranch: "feature",
 				targetBranch: "main",
@@ -383,9 +389,13 @@ describe("ReactionRepository", () => {
 			const issue = new IssueEntity({
 				owner,
 				repoName,
+				issueNumber: 2,
 				title: "Test Issue for Duplicate",
 				body: "Test body",
+				status: "open",
 				author: "testuser",
+				assignees: [],
+				labels: [],
 			});
 			const createdIssue = await issueRepo.create(issue);
 
@@ -431,9 +441,13 @@ describe("ReactionRepository", () => {
 			const issue = new IssueEntity({
 				owner,
 				repoName,
+				issueNumber: 3,
 				title: "Test Issue for Multiple Emojis",
 				body: "Test body",
+				status: "open",
 				author: "testuser",
+				assignees: [],
+				labels: [],
 			});
 			const createdIssue = await issueRepo.create(issue);
 
@@ -486,9 +500,13 @@ describe("ReactionRepository", () => {
 			const issue = new IssueEntity({
 				owner,
 				repoName,
+				issueNumber: 4,
 				title: "Test Issue for Multiple Users",
 				body: "Test body",
+				status: "open",
 				author: "testuser",
+				assignees: [],
+				labels: [],
 			});
 			const createdIssue = await issueRepo.create(issue);
 
@@ -605,9 +623,13 @@ describe("ReactionRepository", () => {
 			const issue = new IssueEntity({
 				owner,
 				repoName,
+				issueNumber: 5,
 				title: "Test Issue for Delete",
 				body: "Test body",
+				status: "open",
 				author: "testuser",
+				assignees: [],
+				labels: [],
 			});
 			const createdIssue = await issueRepo.create(issue);
 
@@ -654,9 +676,13 @@ describe("ReactionRepository", () => {
 			const issue = new IssueEntity({
 				owner,
 				repoName,
+				issueNumber: 6,
 				title: "Test Issue for List",
 				body: "Test body",
+				status: "open",
 				author: "testuser",
+				assignees: [],
+				labels: [],
 			});
 			const createdIssue = await issueRepo.create(issue);
 
@@ -737,9 +763,13 @@ describe("ReactionRepository", () => {
 			const issue = new IssueEntity({
 				owner,
 				repoName,
+				issueNumber: 7,
 				title: "Test Issue for User List",
 				body: "Test body",
+				status: "open",
 				author: "testuser",
+				assignees: [],
+				labels: [],
 			});
 			const createdIssue = await issueRepo.create(issue);
 
@@ -824,9 +854,13 @@ describe("ReactionRepository", () => {
 			const issue = new IssueEntity({
 				owner,
 				repoName,
+				issueNumber: 8,
 				title: "Test Issue for Concurrent",
 				body: "Test body",
+				status: "open",
 				author: "testuser",
+				assignees: [],
+				labels: [],
 			});
 			const createdIssue = await issueRepo.create(issue);
 

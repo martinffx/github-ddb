@@ -147,7 +147,11 @@ class ReactionEntity {
 
 		// Validate target_type
 		const targetType =
-			"targetType" in data ? data.targetType : data.target_type;
+			"targetType" in data
+				? data.targetType
+				: "target_type" in data
+					? data.target_type
+					: undefined;
 		if (!targetType) {
 			throw new ValidationError("target_type", "Target type is required");
 		}
@@ -161,7 +165,12 @@ class ReactionEntity {
 		}
 
 		// Validate target_id
-		const targetId = "targetId" in data ? data.targetId : data.target_id;
+		const targetId =
+			"targetId" in data
+				? data.targetId
+				: "target_id" in data
+					? data.target_id
+					: undefined;
 		if (!targetId) {
 			throw new ValidationError("target_id", "Target ID is required");
 		}

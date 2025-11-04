@@ -1,5 +1,9 @@
 import { PullRequestService } from "./PullRequestService";
-import type { PullRequestRepository } from "../repos";
+import type {
+	PullRequestRepository,
+	PRCommentRepository,
+	ReactionRepository,
+} from "../repos";
 import { PullRequestEntity } from "./entities";
 import { EntityNotFoundError, ValidationError } from "../shared";
 import type {
@@ -16,7 +20,27 @@ describe("PullRequestService", () => {
 		update: jest.fn(),
 		delete: jest.fn(),
 	} as unknown as PullRequestRepository);
-	const pullRequestService = new PullRequestService(mockPullRequestRepo);
+
+	const mockPRCommentRepo = jest.mocked<PRCommentRepository>({
+		create: jest.fn(),
+		get: jest.fn(),
+		listByPR: jest.fn(),
+		update: jest.fn(),
+		delete: jest.fn(),
+	} as unknown as PRCommentRepository);
+
+	const mockReactionRepo = jest.mocked<ReactionRepository>({
+		create: jest.fn(),
+		get: jest.fn(),
+		listByTarget: jest.fn(),
+		delete: jest.fn(),
+	} as unknown as ReactionRepository);
+
+	const pullRequestService = new PullRequestService(
+		mockPullRequestRepo,
+		mockPRCommentRepo,
+		mockReactionRepo,
+	);
 
 	beforeEach(() => {
 		jest.resetAllMocks();

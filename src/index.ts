@@ -8,12 +8,9 @@ import swagger from "@fastify/swagger";
 import swaggerUI from "@fastify/swagger-ui";
 import { Config } from "./config";
 import {
-	CommentRoutes,
-	ForkRoutes,
 	IssueRoutes,
 	OrganizationRoutes,
 	PullRequestRoutes,
-	ReactionRoutes,
 	RepositoryRoutes,
 	StarRoutes,
 	StarUserRoutes,
@@ -108,37 +105,9 @@ async function createApp({ config, services }: AppOpts) {
 	app.register(PullRequestRoutes, {
 		prefix: "/v1/repositories/:owner/:repoName/pulls",
 	});
-	// Register CommentRoutes nested under issues
-	app.register(CommentRoutes, {
-		prefix: "/v1/repositories/:owner/:repoName/issues/:issueNumber/comments",
-	});
-	// Register CommentRoutes nested under pull requests
-	app.register(CommentRoutes, {
-		prefix: "/v1/repositories/:owner/:repoName/pulls/:prNumber/comments",
-	});
-	// Register ReactionRoutes for issues
-	app.register(ReactionRoutes, {
-		prefix: "/v1/repositories/:owner/:repoName/issues/:issueNumber/reactions",
-	});
-	// Register ReactionRoutes for pull requests
-	app.register(ReactionRoutes, {
-		prefix: "/v1/repositories/:owner/:repoName/pulls/:prNumber/reactions",
-	});
-	// Register ReactionRoutes for issue comments
-	app.register(ReactionRoutes, {
-		prefix:
-			"/v1/repositories/:owner/:repoName/issues/:issueNumber/comments/:commentId/reactions",
-	});
-	// Register ReactionRoutes for PR comments
-	app.register(ReactionRoutes, {
-		prefix:
-			"/v1/repositories/:owner/:repoName/pulls/:prNumber/comments/:commentId/reactions",
-	});
-	// Register ForkRoutes nested under repositories
-	app.register(ForkRoutes, {
-		prefix: "/v1/repositories/:owner/:repoName/forks",
-	});
-	// Register StarRoutes
+	// Comment and Reaction routes are now handled within IssueRoutes and PullRequestRoutes
+	// Fork routes are now handled within RepositoryRoutes
+	// Register StarRoutes (will be updated to use repositoryService)
 	app.register(StarRoutes, { prefix: "/v1/user/starred" });
 	// Register StarUserRoutes
 	app.register(StarUserRoutes, { prefix: "/v1/users" });

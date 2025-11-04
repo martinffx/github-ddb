@@ -218,7 +218,11 @@ export class ReactionRepository {
 		repoName: string,
 		targetType: "ISSUE" | "PR" | "ISSUECOMMENT" | "PRCOMMENT",
 		targetId: string,
-	): ConditionCheck<typeof this.issueRecord> {
+	):
+		| ConditionCheck<typeof this.issueRecord>
+		| ConditionCheck<typeof this.pullRequestRecord>
+		| ConditionCheck<typeof this.issueCommentRecord>
+		| ConditionCheck<typeof this.prCommentRecord> {
 		switch (targetType) {
 			case "ISSUE": {
 				// targetId is issue_number
@@ -242,9 +246,7 @@ export class ReactionRepository {
 						repo_name: repoName,
 						pr_number: prNumber,
 					})
-					.condition({ attr: "PK", exists: true }) as ConditionCheck<
-					typeof this.issueRecord
-				>;
+					.condition({ attr: "PK", exists: true });
 			}
 			case "ISSUECOMMENT": {
 				// targetId format: "issueNumber-commentId"
@@ -260,9 +262,7 @@ export class ReactionRepository {
 						issue_number: issueNumber,
 						comment_id: commentId,
 					})
-					.condition({ attr: "PK", exists: true }) as ConditionCheck<
-					typeof this.issueRecord
-				>;
+					.condition({ attr: "PK", exists: true });
 			}
 			case "PRCOMMENT": {
 				// targetId format: "prNumber-commentId"
@@ -278,9 +278,7 @@ export class ReactionRepository {
 						pr_number: prNumber,
 						comment_id: commentId,
 					})
-					.condition({ attr: "PK", exists: true }) as ConditionCheck<
-					typeof this.issueRecord
-				>;
+					.condition({ attr: "PK", exists: true });
 			}
 		}
 	}
