@@ -3,18 +3,27 @@ import type { FastifyInstance, FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
 import type { Config } from "../config";
 import {
+	ForkRepository,
+	IssueCommentRepository,
 	IssueRepository,
 	OrganizationRepository,
+	PRCommentRepository,
 	PullRequestRepository,
+	ReactionRepository,
 	RepoRepository,
+	StarRepository,
 	UserRepository,
 } from "../repos";
 import { initializeSchema } from "../repos/schema";
 import {
+	CommentService,
+	ForkService,
 	IssueService,
 	OrganizationService,
 	PullRequestService,
+	ReactionService,
 	RepositoryService,
+	StarService,
 	UserService,
 } from "../services";
 
@@ -25,6 +34,10 @@ export interface Services {
 	repositoryService: RepositoryService;
 	issueService: IssueService;
 	pullRequestService: PullRequestService;
+	commentService: CommentService;
+	reactionService: ReactionService;
+	forkService: ForkService;
+	starService: StarService;
 }
 
 // Extend Fastify types to include our services decorator
@@ -77,6 +90,35 @@ export const buildServices = async (config: Config): Promise<Services> => {
 		schema.counter,
 		schema.repository,
 	);
+	const issueCommentRepository = new IssueCommentRepository(
+		schema.table,
+		schema.issueComment,
+		schema.issue,
+	);
+	const prCommentRepository = new PRCommentRepository(
+		schema.table,
+		schema.prComment,
+		schema.pullRequest,
+	);
+	const reactionRepository = new ReactionRepository(
+		schema.table,
+		schema.reaction,
+		schema.issue,
+		schema.pullRequest,
+		schema.issueComment,
+		schema.prComment,
+	);
+	const forkRepository = new ForkRepository(
+		schema.table,
+		schema.fork,
+		schema.repository,
+	);
+	const starRepository = new StarRepository(
+		schema.table,
+		schema.star,
+		schema.user,
+		schema.repository,
+	);
 
 	// Create services
 	const userService = new UserService(userRepository);
@@ -84,6 +126,13 @@ export const buildServices = async (config: Config): Promise<Services> => {
 	const repositoryService = new RepositoryService(repoRepository);
 	const issueService = new IssueService(issueRepository);
 	const pullRequestService = new PullRequestService(pullRequestRepository);
+	const commentService = new CommentService(
+		issueCommentRepository,
+		prCommentRepository,
+	);
+	const reactionService = new ReactionService(reactionRepository);
+	const forkService = new ForkService(forkRepository);
+	const starService = new StarService(starRepository);
 
 	return {
 		userService,
@@ -91,6 +140,10 @@ export const buildServices = async (config: Config): Promise<Services> => {
 		repositoryService,
 		issueService,
 		pullRequestService,
+		commentService,
+		reactionService,
+		forkService,
+		starService,
 	};
 };
 
@@ -113,3 +166,7 @@ export * from "./OrganizationService";
 export * from "./RepositoryService";
 export * from "./IssueService";
 export * from "./PullRequestService";
+export * from "./CommentService";
+export * from "./ReactionService";
+export * from "./ForkService";
+export * from "./StarService";

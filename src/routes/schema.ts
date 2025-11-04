@@ -271,3 +271,181 @@ export const PullRequestListQuerySchema = Type.Object({
 export type PullRequestCreateRequest = Static<typeof PullRequestCreateSchema>;
 export type PullRequestUpdateRequest = Static<typeof PullRequestUpdateSchema>;
 export type PullRequestResponse = Static<typeof PullRequestResponseSchema>;
+
+/**
+ * Comment Schemas (for both Issue and PR comments)
+ */
+export const CommentCreateSchema = Type.Object({
+	author: Type.String({ minLength: 1 }),
+	body: Type.String({ minLength: 1 }),
+});
+
+export const CommentUpdateSchema = Type.Object({
+	body: Type.String({ minLength: 1 }),
+});
+
+export const CommentResponseSchema = Type.Intersect([
+	BaseResponseSchema,
+	Type.Object({
+		owner: Type.String(),
+		repo_name: Type.String(),
+		comment_id: Type.String(),
+		body: Type.String(),
+		author: Type.String(),
+	}),
+]);
+
+export const IssueCommentResponseSchema = Type.Intersect([
+	CommentResponseSchema,
+	Type.Object({
+		issue_number: Type.Number(),
+	}),
+]);
+
+export const PRCommentResponseSchema = Type.Intersect([
+	CommentResponseSchema,
+	Type.Object({
+		pr_number: Type.Number(),
+	}),
+]);
+
+export const IssueCommentParamsSchema = Type.Object({
+	owner: Type.String(),
+	repoName: Type.String(),
+	issueNumber: Type.String({ pattern: "^[0-9]+$" }),
+	commentId: Type.String(),
+});
+
+export const PRCommentParamsSchema = Type.Object({
+	owner: Type.String(),
+	repoName: Type.String(),
+	prNumber: Type.String({ pattern: "^[0-9]+$" }),
+	commentId: Type.String(),
+});
+
+export const IssueCommentListParamsSchema = Type.Object({
+	owner: Type.String(),
+	repoName: Type.String(),
+	issueNumber: Type.String({ pattern: "^[0-9]+$" }),
+});
+
+export const PRCommentListParamsSchema = Type.Object({
+	owner: Type.String(),
+	repoName: Type.String(),
+	prNumber: Type.String({ pattern: "^[0-9]+$" }),
+});
+
+export type CommentCreateRequest = Static<typeof CommentCreateSchema>;
+export type CommentUpdateRequest = Static<typeof CommentUpdateSchema>;
+export type IssueCommentResponse = Static<typeof IssueCommentResponseSchema>;
+export type PRCommentResponse = Static<typeof PRCommentResponseSchema>;
+
+/**
+ * Reaction Schemas
+ */
+export const ReactionCreateSchema = Type.Object({
+	emoji: Type.String({ minLength: 1 }),
+	user: Type.String({ minLength: 1 }),
+});
+
+export const ReactionResponseSchema = Type.Intersect([
+	BaseResponseSchema,
+	Type.Object({
+		owner: Type.String(),
+		repo_name: Type.String(),
+		target_type: Type.String(),
+		target_id: Type.String(),
+		user: Type.String(),
+		emoji: Type.String(),
+	}),
+]);
+
+export const IssueReactionParamsSchema = Type.Object({
+	owner: Type.String(),
+	repoName: Type.String(),
+	issueNumber: Type.String({ pattern: "^[0-9]+$" }),
+});
+
+export const PRReactionParamsSchema = Type.Object({
+	owner: Type.String(),
+	repoName: Type.String(),
+	prNumber: Type.String({ pattern: "^[0-9]+$" }),
+});
+
+export const IssueCommentReactionParamsSchema = Type.Object({
+	owner: Type.String(),
+	repoName: Type.String(),
+	issueNumber: Type.String({ pattern: "^[0-9]+$" }),
+	commentId: Type.String(),
+});
+
+export const PRCommentReactionParamsSchema = Type.Object({
+	owner: Type.String(),
+	repoName: Type.String(),
+	prNumber: Type.String({ pattern: "^[0-9]+$" }),
+	commentId: Type.String(),
+});
+
+export const ReactionDeleteParamsSchema = Type.Object({
+	emoji: Type.String(),
+	user: Type.String(),
+});
+
+export const ReactionListQuerySchema = Type.Object({
+	emoji: Type.Optional(Type.String()),
+});
+
+export type ReactionCreateRequest = Static<typeof ReactionCreateSchema>;
+export type ReactionResponse = Static<typeof ReactionResponseSchema>;
+
+/**
+ * Fork Schemas
+ */
+export const ForkCreateSchema = Type.Object({
+	fork_owner: Type.String({ minLength: 1 }),
+	fork_repo: Type.String({ minLength: 1 }),
+});
+
+export const ForkResponseSchema = Type.Intersect([
+	BaseResponseSchema,
+	Type.Object({
+		original_owner: Type.String(),
+		original_repo: Type.String(),
+		fork_owner: Type.String(),
+		fork_repo: Type.String(),
+	}),
+]);
+
+export const ForkParamsSchema = Type.Object({
+	owner: Type.String(),
+	repoName: Type.String(),
+	forkedOwner: Type.String(),
+	forkedRepo: Type.String(),
+});
+
+export const ForkListParamsSchema = Type.Object({
+	owner: Type.String(),
+	repoName: Type.String(),
+});
+
+export type ForkCreateRequest = Static<typeof ForkCreateSchema>;
+export type ForkResponse = Static<typeof ForkResponseSchema>;
+
+/**
+ * Star Schemas
+ */
+export const StarResponseSchema = Type.Intersect([
+	BaseResponseSchema,
+	Type.Object({
+		username: Type.String(),
+		repo_owner: Type.String(),
+		repo_name: Type.String(),
+	}),
+]);
+
+export const StarParamsSchema = Type.Object({
+	owner: Type.String(),
+	repoName: Type.String(),
+});
+
+export type StarResponse = Static<typeof StarResponseSchema>;

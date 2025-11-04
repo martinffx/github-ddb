@@ -25,6 +25,10 @@ type IssueCommentCreateRequest = {
 	author: string;
 };
 
+type IssueCommentUpdateRequest = {
+	body?: string;
+};
+
 type IssueCommentResponse = {
 	owner: string;
 	repo_name: string;
@@ -126,6 +130,23 @@ class IssueCommentEntity {
 	}
 
 	/**
+	 * Create a new entity with updated fields
+	 * Preserves immutability by returning a new instance
+	 */
+	public updateWith(update: IssueCommentUpdateRequest): IssueCommentEntity {
+		return new IssueCommentEntity({
+			owner: this.owner,
+			repoName: this.repoName,
+			issueNumber: this.issueNumber,
+			commentId: this.commentId,
+			body: update.body ?? this.body,
+			author: this.author,
+			created: this.created,
+			modified: DateTime.utc(),
+		});
+	}
+
+	/**
 	 * Validate comment data
 	 * Throws ValidationError with clear messages
 	 */
@@ -178,5 +199,6 @@ export { IssueCommentEntity };
 export type {
 	IssueCommentEntityOpts,
 	IssueCommentCreateRequest,
+	IssueCommentUpdateRequest,
 	IssueCommentResponse,
 };

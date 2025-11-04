@@ -153,8 +153,13 @@ class IssueEntity {
 			author: this.author,
 			// Only include Sets if arrays are not empty (DynamoDB doesn't allow empty Sets)
 			assignees:
-				this.assignees && this.assignees.length > 0 ? new Set(this.assignees) : undefined,
-			labels: this.labels && this.labels.length > 0 ? new Set(this.labels) : undefined,
+				this.assignees && this.assignees.length > 0
+					? new Set(this.assignees)
+					: undefined,
+			labels:
+				this.labels && this.labels.length > 0
+					? new Set(this.labels)
+					: undefined,
 		};
 	}
 
