@@ -17,7 +17,7 @@
 	"keywords": [],
 	"author": "",
 	"license": "MIT",
-	"packageManager": "pnpm@10.18.2",
+	"packageManager": "pnpm@10.20.0",
 	"dependencies": {
 		"@aws-sdk/client-dynamodb": "3.658.1",
 		"@aws-sdk/lib-dynamodb": "3.658.1",
