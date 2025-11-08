@@ -331,6 +331,22 @@ class PullRequestEntity {
 			);
 		}
 	}
+
+	/**
+	 * Get the entity key for error messages and logging
+	 * Returns a string representation that uniquely identifies this entity
+	 */
+	public getEntityKey(): string {
+		return `PR#${this.owner}#${this.repoName}#${this.prNumber}`;
+	}
+
+	/**
+	 * Get the parent entity key (Repository) for error messages
+	 * Returns a string representation that identifies the parent repository
+	 */
+	public getParentEntityKey(): string {
+		return `REPO#${this.owner}#${this.repoName}`;
+	}
 }
 
 export { PullRequestEntity };

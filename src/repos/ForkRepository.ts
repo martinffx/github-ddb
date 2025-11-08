@@ -1,7 +1,4 @@
-import {
-	ConditionalCheckFailedException,
-	TransactionCanceledException,
-} from "@aws-sdk/client-dynamodb";
+import { TransactionCanceledException } from "@aws-sdk/client-dynamodb";
 import {
 	ConditionCheck,
 	DeleteItemCommand,
@@ -18,7 +15,11 @@ import type {
 	ForkFormatted,
 } from "./schema";
 import { ForkEntity } from "../services/entities/ForkEntity";
-import { DuplicateEntityError, ValidationError } from "../shared";
+import {
+	DuplicateEntityError,
+	EntityNotFoundError,
+	ValidationError,
+} from "../shared";
 
 export class ForkRepository {
 	private readonly table: GithubTable;
@@ -71,36 +72,59 @@ export class ForkRepository {
 
 			return created;
 		} catch (error: unknown) {
-			if (
-				error instanceof TransactionCanceledException ||
-				error instanceof ConditionalCheckFailedException
-			) {
-				// Transaction failed - could be duplicate fork or missing repo
-				// Check if it's a duplicate by trying to get the fork
-				const existing = await this.get(
-					fork.originalOwner,
-					fork.originalRepo,
-					fork.forkOwner,
-				);
-
-				if (existing) {
-					throw new DuplicateEntityError(
-						"Fork",
-						`FORK#${fork.originalOwner}#${fork.originalRepo}#${fork.forkOwner}`,
-					);
-				}
-
-				// If fork doesn't exist, one of the repos must not exist
-				throw new ValidationError(
-					"repository",
-					`Source repository '${fork.originalOwner}/${fork.originalRepo}' or target repository '${fork.forkOwner}/${fork.forkRepo}' does not exist`,
-				);
-			}
-			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError(error.path ?? "fork", error.message);
-			}
-			throw error;
+			this.handleForkCreateError(error, fork);
 		}
+	}
+
+	/**
+	 * Custom error handler for fork creation with 3-transaction validation
+	 * Transaction 0: Put fork (duplicate check)
+	 * Transaction 1: Check source repo exists
+	 * Transaction 2: Check target repo exists
+	 */
+	private handleForkCreateError(error: unknown, fork: ForkEntity): never {
+		if (error instanceof TransactionCanceledException) {
+			const reasons = error.CancellationReasons || [];
+
+			// Fork creation has 3 transactions
+			if (reasons.length < 3) {
+				throw new ValidationError(
+					"transaction",
+					`Transaction failed with unexpected cancellation reason count: ${reasons.length}`,
+				);
+			}
+
+			// First transaction is the fork put (duplicate check)
+			if (reasons[0]?.Code === "ConditionalCheckFailed") {
+				throw new DuplicateEntityError("Fork", fork.getEntityKey());
+			}
+
+			// Second transaction is the source repo check
+			if (reasons[1]?.Code === "ConditionalCheckFailed") {
+				throw new EntityNotFoundError(
+					"RepositoryEntity",
+					`REPO#${fork.originalOwner}#${fork.originalRepo}`,
+				);
+			}
+
+			// Third transaction is the target repo check
+			if (reasons[2]?.Code === "ConditionalCheckFailed") {
+				throw new EntityNotFoundError(
+					"RepositoryEntity",
+					`REPO#${fork.forkOwner}#${fork.forkRepo}`,
+				);
+			}
+
+			// Fallback for unknown transaction failure
+			throw new ValidationError(
+				"fork",
+				`Failed to create fork due to transaction conflict: ${reasons.map((r) => r.Code).join(", ")}`,
+			);
+		}
+		if (error instanceof DynamoDBToolboxError) {
+			throw new ValidationError(error.path ?? "fork", error.message);
+		}
+		throw error;
 	}
 
 	/**

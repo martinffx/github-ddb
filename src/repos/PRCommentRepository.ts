@@ -1,11 +1,6 @@
 import {
-	ConditionalCheckFailedException,
-	TransactionCanceledException,
-} from "@aws-sdk/client-dynamodb";
-import {
 	ConditionCheck,
 	DeleteItemCommand,
-	DynamoDBToolboxError,
 	GetItemCommand,
 	PutItemCommand,
 	QueryCommand,
@@ -19,7 +14,7 @@ import type {
 	PRCommentFormatted,
 } from "./schema";
 import { PRCommentEntity } from "../services/entities/PRCommentEntity";
-import { EntityNotFoundError, ValidationError } from "../shared";
+import { handleTransactionError, handleUpdateError } from "./utils";
 
 export class PRCommentRepository {
 	private readonly table: GithubTable;
@@ -85,20 +80,13 @@ export class PRCommentRepository {
 
 			return created;
 		} catch (error: unknown) {
-			if (
-				error instanceof TransactionCanceledException ||
-				error instanceof ConditionalCheckFailedException
-			) {
-				// Transaction failed - could be duplicate comment or missing PR
-				throw new ValidationError(
-					"pr",
-					`Pull request '${comment.owner}/${comment.repoName}#${comment.prNumber}' does not exist`,
-				);
-			}
-			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError(error.path ?? "comment", error.message);
-			}
-			throw error;
+			handleTransactionError(error, {
+				entityType: "PRComment",
+				entityKey: comment.getEntityKey(),
+				parentEntityType: "PullRequestEntity",
+				parentEntityKey: comment.getParentEntityKey(),
+				operationName: "comment",
+			});
 		}
 	}
 
@@ -139,7 +127,7 @@ export class PRCommentRepository {
 			.query({
 				partition: `REPO#${owner}#${repoName}`,
 				range: {
-					beginsWith: `PR#${String(prNumber).padStart(6, "0")}#COMMENT#`,
+					beginsWith: `PR#${String(prNumber).padStart(8, "0")}#COMMENT#`,
 				},
 			})
 			.send();
@@ -166,16 +154,7 @@ export class PRCommentRepository {
 
 			return PRCommentEntity.fromRecord(result.ToolboxItem);
 		} catch (error: unknown) {
-			if (error instanceof ConditionalCheckFailedException) {
-				throw new EntityNotFoundError(
-					"PRComment",
-					`PRCOMMENT#${comment.owner}#${comment.repoName}#${comment.prNumber}#${comment.commentId}`,
-				);
-			}
-			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError(error.path ?? "comment", error.message);
-			}
-			throw error;
+			handleUpdateError(error, "PRComment", comment.getEntityKey());
 		}
 	}
 

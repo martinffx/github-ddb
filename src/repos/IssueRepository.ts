@@ -1,11 +1,6 @@
 import {
-	ConditionalCheckFailedException,
-	TransactionCanceledException,
-} from "@aws-sdk/client-dynamodb";
-import {
 	ConditionCheck,
 	DeleteItemCommand,
-	DynamoDBToolboxError,
 	GetItemCommand,
 	PutItemCommand,
 	QueryCommand,
@@ -22,7 +17,7 @@ import type {
 	IssueFormatted,
 } from "./schema";
 import { IssueEntity } from "../services/entities/IssueEntity";
-import { EntityNotFoundError, ValidationError } from "../shared";
+import { handleTransactionError, handleUpdateError } from "./utils";
 
 export class IssueRepository {
 	private readonly table: GithubTable;
@@ -47,26 +42,26 @@ export class IssueRepository {
 	 * Uses CounterRepository to get next issue number atomically
 	 */
 	async create(issue: IssueEntity): Promise<IssueEntity> {
+		// Get next issue number from counter (atomic operation)
+		const issueNumber = await this.incrementCounter(
+			issue.owner,
+			issue.repoName,
+		);
+
+		// Create issue entity with assigned number
+		const issueWithNumber = new IssueEntity({
+			owner: issue.owner,
+			repoName: issue.repoName,
+			issueNumber,
+			title: issue.title,
+			body: issue.body,
+			status: issue.status,
+			author: issue.author,
+			assignees: issue.assignees,
+			labels: issue.labels,
+		});
+
 		try {
-			// Get next issue number from counter (atomic operation)
-			const issueNumber = await this.incrementCounter(
-				issue.owner,
-				issue.repoName,
-			);
-
-			// Create issue entity with assigned number
-			const issueWithNumber = new IssueEntity({
-				owner: issue.owner,
-				repoName: issue.repoName,
-				issueNumber,
-				title: issue.title,
-				body: issue.body,
-				status: issue.status,
-				author: issue.author,
-				assignees: issue.assignees,
-				labels: issue.labels,
-			});
-
 			// Build transaction to put issue with duplicate check
 			const putIssueTransaction = this.issueRecord
 				.build(PutTransaction)
@@ -94,20 +89,13 @@ export class IssueRepository {
 
 			return created;
 		} catch (error: unknown) {
-			if (
-				error instanceof TransactionCanceledException ||
-				error instanceof ConditionalCheckFailedException
-			) {
-				// Transaction failed - could be duplicate issue or missing repository
-				throw new ValidationError(
-					"repository",
-					`Repository '${issue.owner}/${issue.repoName}' does not exist`,
-				);
-			}
-			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError(error.path ?? "issue", error.message);
-			}
-			throw error;
+			handleTransactionError(error, {
+				entityType: "IssueEntity",
+				entityKey: issueWithNumber.getEntityKey(),
+				parentEntityType: "RepositoryEntity",
+				parentEntityKey: issue.getParentEntityKey(),
+				operationName: "issue",
+			});
 		}
 	}
 
@@ -133,15 +121,15 @@ export class IssueRepository {
 
 	/**
 	 * List all issues for a repository
-	 * Uses main table query with PK
+	 * Uses GSI1 to avoid hot partition on main table
 	 */
 	async list(owner: string, repoName: string): Promise<IssueEntity[]> {
 		const result = await this.table
 			.build(QueryCommand)
 			.entities(this.issueRecord)
 			.query({
-				partition: `REPO#${owner}#${repoName}`,
-				range: { beginsWith: "ISSUE#" },
+				partition: `ISSUE#${owner}#${repoName}`,
+				index: "GSI1",
 			})
 			.send();
 
@@ -166,7 +154,7 @@ export class IssueRepository {
 			.build(QueryCommand)
 			.entities(this.issueRecord)
 			.query({
-				partition: `REPO#${owner}#${repoName}`,
+				partition: `ISSUE#${owner}#${repoName}`,
 				index: "GSI4",
 				range: {
 					beginsWith: status === "open" ? "ISSUE#OPEN#" : "#ISSUE#CLOSED#",
@@ -197,16 +185,7 @@ export class IssueRepository {
 
 			return IssueEntity.fromRecord(result.ToolboxItem);
 		} catch (error: unknown) {
-			if (error instanceof ConditionalCheckFailedException) {
-				throw new EntityNotFoundError(
-					"IssueEntity",
-					`ISSUE#${issue.owner}#${issue.repoName}#${issue.issueNumber}`,
-				);
-			}
-			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError(error.path ?? "issue", error.message);
-			}
-			throw error;
+			handleUpdateError(error, "IssueEntity", issue.getEntityKey());
 		}
 	}
 

@@ -9,6 +9,7 @@ import { PRCommentEntity } from "../services/entities/PRCommentEntity";
 import { PullRequestEntity } from "../services/entities/PullRequestEntity";
 import { RepositoryEntity } from "../services/entities/RepositoryEntity";
 import { UserEntity } from "../services/entities/UserEntity";
+import { EntityNotFoundError } from "../shared";
 
 describe("PRCommentRepository", () => {
 	let client: DynamoDBClient;
@@ -160,7 +161,9 @@ describe("PRCommentRepository", () => {
 				author: testUsername,
 			});
 
-			await expect(commentRepo.create(comment)).rejects.toThrow("Pull request");
+			await expect(commentRepo.create(comment)).rejects.toThrow(
+				EntityNotFoundError,
+			);
 		});
 	});
 

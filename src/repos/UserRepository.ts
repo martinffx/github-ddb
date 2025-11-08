@@ -2,16 +2,10 @@ import {
 	DeleteItemCommand,
 	GetItemCommand,
 	PutItemCommand,
-	DynamoDBToolboxError,
 } from "dynamodb-toolbox";
-import { ConditionalCheckFailedException } from "@aws-sdk/client-dynamodb";
 import { UserEntity } from "../services";
-import {
-	DuplicateEntityError,
-	EntityNotFoundError,
-	ValidationError,
-} from "../shared";
 import type { UserRecord } from "./schema";
+import { handleCreateError, handleUpdateError } from "./utils";
 
 export class UserRepository {
 	private readonly entity: UserRecord;
@@ -40,13 +34,7 @@ export class UserRepository {
 
 			return UserEntity.fromRecord(result.ToolboxItem);
 		} catch (error: unknown) {
-			if (error instanceof ConditionalCheckFailedException) {
-				throw new DuplicateEntityError("UserEntity", user.username);
-			}
-			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError(error.path ?? "user", error.message);
-			}
-			throw error;
+			handleCreateError(error, "UserEntity", user.getEntityKey());
 		}
 	}
 
@@ -69,13 +57,7 @@ export class UserRepository {
 
 			return UserEntity.fromRecord(result.ToolboxItem);
 		} catch (error: unknown) {
-			if (error instanceof ConditionalCheckFailedException) {
-				throw new EntityNotFoundError("UserEntity", user.username);
-			}
-			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError("", error.message);
-			}
-			throw error;
+			handleUpdateError(error, "UserEntity", user.getEntityKey());
 		}
 	}
 

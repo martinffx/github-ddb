@@ -6,7 +6,7 @@ import { initializeSchema, createTableParams } from "./schema";
 import { ForkEntity } from "../services/entities/ForkEntity";
 import { RepositoryEntity } from "../services/entities/RepositoryEntity";
 import { UserEntity } from "../services/entities/UserEntity";
-import { DuplicateEntityError, ValidationError } from "../shared";
+import { DuplicateEntityError, EntityNotFoundError } from "../shared";
 
 const dynamoClient = new DynamoDBClient({
 	endpoint: "http://localhost:8000",
@@ -202,7 +202,7 @@ describe("ForkRepository", () => {
 				fork_repo: targetRepoName,
 			});
 
-			await expect(forkRepo.create(fork)).rejects.toThrow(ValidationError);
+			await expect(forkRepo.create(fork)).rejects.toThrow(EntityNotFoundError);
 
 			// Cleanup
 			await repoRepo.deleteRepo({
@@ -240,7 +240,7 @@ describe("ForkRepository", () => {
 				fork_repo: targetRepoName,
 			});
 
-			await expect(forkRepo.create(fork)).rejects.toThrow(ValidationError);
+			await expect(forkRepo.create(fork)).rejects.toThrow(EntityNotFoundError);
 
 			// Cleanup
 			await repoRepo.deleteRepo({

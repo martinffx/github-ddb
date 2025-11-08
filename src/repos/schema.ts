@@ -264,22 +264,30 @@ const IssueRecord = new Entity({
 		PK: string()
 			.key()
 			.link<typeof _schema>(
-				({ owner, repo_name }) => `REPO#${owner}#${repo_name}`,
+				({ owner, repo_name, issue_number }) =>
+					`ISSUE#${owner}#${repo_name}#${String(issue_number).padStart(8, "0")}`,
 			),
 		SK: string()
 			.key()
 			.link<typeof _schema>(
-				({ issue_number }) => `ISSUE#${String(issue_number).padStart(6, "0")}`,
+				({ owner, repo_name, issue_number }) =>
+					`ISSUE#${owner}#${repo_name}#${String(issue_number).padStart(8, "0")}`,
 			),
+		GSI1PK: string().link<typeof _schema>(
+			({ owner, repo_name }) => `ISSUE#${owner}#${repo_name}`,
+		),
+		GSI1SK: string().link<typeof _schema>(
+			({ issue_number }) => `ISSUE#${String(issue_number).padStart(8, "0")}`,
+		),
 		GSI4PK: string().link<typeof _schema>(
-			({ owner, repo_name }) => `REPO#${owner}#${repo_name}`,
+			({ owner, repo_name }) => `ISSUE#${owner}#${repo_name}`,
 		),
 		GSI4SK: string().link<typeof _schema>(({ issue_number, status }) => {
 			if (status === "open") {
-				const reverseNumber = String(999999 - issue_number).padStart(6, "0");
+				const reverseNumber = String(99999999 - issue_number).padStart(8, "0");
 				return `ISSUE#OPEN#${reverseNumber}`;
 			}
-			const paddedNumber = String(issue_number).padStart(6, "0");
+			const paddedNumber = String(issue_number).padStart(8, "0");
 			return `#ISSUE#CLOSED#${paddedNumber}`;
 		}),
 	})),
@@ -314,28 +322,30 @@ const PullRequestRecord = new Entity({
 		PK: string()
 			.key()
 			.link<typeof _schema>(
-				({ owner, repo_name }) => `REPO#${owner}#${repo_name}`,
+				({ owner, repo_name, pr_number }) =>
+					`PR#${owner}#${repo_name}#${String(pr_number).padStart(8, "0")}`,
 			),
 		SK: string()
 			.key()
 			.link<typeof _schema>(
-				({ pr_number }) => `PR#${String(pr_number).padStart(6, "0")}`,
+				({ owner, repo_name, pr_number }) =>
+					`PR#${owner}#${repo_name}#${String(pr_number).padStart(8, "0")}`,
 			),
 		GSI1PK: string().link<typeof _schema>(
-			({ owner, repo_name }) => `REPO#${owner}#${repo_name}`,
+			({ owner, repo_name }) => `PR#${owner}#${repo_name}`,
 		),
 		GSI1SK: string().link<typeof _schema>(
-			({ owner, repo_name }) => `REPO#${owner}#${repo_name}`,
+			({ pr_number }) => `PR#${String(pr_number).padStart(8, "0")}`,
 		),
 		GSI4PK: string().link<typeof _schema>(
-			({ owner, repo_name }) => `REPO#${owner}#${repo_name}`,
+			({ owner, repo_name }) => `PR#${owner}#${repo_name}`,
 		),
 		GSI4SK: string().link<typeof _schema>(({ pr_number, status }) => {
 			if (status === "open") {
-				const reverseNumber = String(999999 - pr_number).padStart(6, "0");
+				const reverseNumber = String(99999999 - pr_number).padStart(8, "0");
 				return `PR#OPEN#${reverseNumber}`;
 			}
-			const paddedNumber = String(pr_number).padStart(6, "0");
+			const paddedNumber = String(pr_number).padStart(8, "0");
 			if (status === "merged") {
 				return `#PR#MERGED#${paddedNumber}`;
 			}
@@ -373,7 +383,7 @@ const IssueCommentRecord = new Entity({
 			.key()
 			.link<typeof _schema>(
 				({ issue_number, comment_id }) =>
-					`ISSUE#${String(issue_number).padStart(6, "0")}#COMMENT#${comment_id}`,
+					`ISSUE#${String(issue_number).padStart(8, "0")}#COMMENT#${comment_id}`,
 			),
 	})),
 } as const);
@@ -407,7 +417,7 @@ const PRCommentRecord = new Entity({
 			.key()
 			.link<typeof _schema>(
 				({ pr_number, comment_id }) =>
-					`PR#${String(pr_number).padStart(6, "0")}#COMMENT#${comment_id}`,
+					`PR#${String(pr_number).padStart(8, "0")}#COMMENT#${comment_id}`,
 			),
 	})),
 } as const);

@@ -1,6 +1,6 @@
 import { RepositoryService } from "./RepositoryService";
 import type { RepoRepository, StarRepository, ForkRepository } from "../repos";
-import { RepositoryEntity } from "./entities";
+import { RepositoryEntity, StarEntity, ForkEntity } from "./entities";
 import {
 	DuplicateEntityError,
 	EntityNotFoundError,
@@ -385,6 +385,383 @@ describe("RepositoryService", () => {
 			expect(mockRepoRepo.listByOwner).toHaveBeenCalledWith(owner, options);
 			expect(result.items).toHaveLength(1);
 			expect(result.offset).toBe("another-page-token");
+		});
+	});
+
+	describe("starRepository", () => {
+		it("should star a repository successfully", async () => {
+			// Arrange
+			const username = "testuser";
+			const repoOwner = "owner";
+			const repoName = "test-repo";
+
+			const star = new StarEntity({
+				username,
+				repoOwner,
+				repoName,
+			});
+
+			mockStarRepo.create.mockResolvedValue(star);
+
+			// Act
+			const result = await repoService.starRepository(
+				username,
+				repoOwner,
+				repoName,
+			);
+
+			// Assert
+			expect(mockStarRepo.create).toHaveBeenCalledTimes(1);
+			expect(mockStarRepo.create).toHaveBeenCalledWith(
+				expect.objectContaining({
+					username,
+					repoOwner,
+					repoName,
+				}),
+			);
+			expect(result.username).toBe(username);
+			expect(result.repo_owner).toBe(repoOwner);
+			expect(result.repo_name).toBe(repoName);
+		});
+	});
+
+	describe("unstarRepository", () => {
+		it("should unstar a repository successfully", async () => {
+			// Arrange
+			const username = "testuser";
+			const repoOwner = "owner";
+			const repoName = "test-repo";
+
+			mockStarRepo.isStarred.mockResolvedValue(true);
+			mockStarRepo.delete.mockResolvedValue(undefined);
+
+			// Act
+			await repoService.unstarRepository(username, repoOwner, repoName);
+
+			// Assert
+			expect(mockStarRepo.isStarred).toHaveBeenCalledWith(
+				username,
+				repoOwner,
+				repoName,
+			);
+			expect(mockStarRepo.delete).toHaveBeenCalledWith(
+				username,
+				repoOwner,
+				repoName,
+			);
+		});
+
+		it("should throw EntityNotFoundError when star does not exist", async () => {
+			// Arrange
+			const username = "testuser";
+			const repoOwner = "owner";
+			const repoName = "test-repo";
+
+			mockStarRepo.isStarred.mockResolvedValue(false);
+
+			// Act & Assert
+			await expect(
+				repoService.unstarRepository(username, repoOwner, repoName),
+			).rejects.toThrow(EntityNotFoundError);
+			expect(mockStarRepo.delete).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("listUserStars", () => {
+		it("should return array of stars for a user", async () => {
+			// Arrange
+			const username = "testuser";
+			const mockStars = [
+				new StarEntity({
+					username,
+					repoOwner: "owner1",
+					repoName: "repo1",
+				}),
+				new StarEntity({
+					username,
+					repoOwner: "owner2",
+					repoName: "repo2",
+				}),
+			];
+
+			mockStarRepo.listStarsByUser.mockResolvedValue(mockStars);
+
+			// Act
+			const result = await repoService.listUserStars(username);
+
+			// Assert
+			expect(mockStarRepo.listStarsByUser).toHaveBeenCalledWith(username);
+			expect(result).toHaveLength(2);
+			expect(result[0].repo_owner).toBe("owner1");
+			expect(result[0].repo_name).toBe("repo1");
+			expect(result[1].repo_owner).toBe("owner2");
+			expect(result[1].repo_name).toBe("repo2");
+		});
+
+		it("should return empty array when user has no stars", async () => {
+			// Arrange
+			const username = "testuser";
+			mockStarRepo.listStarsByUser.mockResolvedValue([]);
+
+			// Act
+			const result = await repoService.listUserStars(username);
+
+			// Assert
+			expect(result).toEqual([]);
+		});
+	});
+
+	describe("isStarred", () => {
+		it("should return true when repository is starred", async () => {
+			// Arrange
+			const username = "testuser";
+			const repoOwner = "owner";
+			const repoName = "test-repo";
+
+			mockStarRepo.isStarred.mockResolvedValue(true);
+
+			// Act
+			const result = await repoService.isStarred(username, repoOwner, repoName);
+
+			// Assert
+			expect(mockStarRepo.isStarred).toHaveBeenCalledWith(
+				username,
+				repoOwner,
+				repoName,
+			);
+			expect(result).toBe(true);
+		});
+
+		it("should return false when repository is not starred", async () => {
+			// Arrange
+			const username = "testuser";
+			const repoOwner = "owner";
+			const repoName = "test-repo";
+
+			mockStarRepo.isStarred.mockResolvedValue(false);
+
+			// Act
+			const result = await repoService.isStarred(username, repoOwner, repoName);
+
+			// Assert
+			expect(mockStarRepo.isStarred).toHaveBeenCalledWith(
+				username,
+				repoOwner,
+				repoName,
+			);
+			expect(result).toBe(false);
+		});
+	});
+
+	describe("createFork", () => {
+		it("should create a fork successfully", async () => {
+			// Arrange
+			const sourceOwner = "original-owner";
+			const sourceRepo = "original-repo";
+			const forkedOwner = "fork-owner";
+			const forkedRepo = "forked-repo";
+
+			const fork = new ForkEntity({
+				originalOwner: sourceOwner,
+				originalRepo: sourceRepo,
+				forkOwner: forkedOwner,
+				forkRepo: forkedRepo,
+			});
+
+			mockForkRepo.create.mockResolvedValue(fork);
+
+			// Act
+			const result = await repoService.createFork(
+				sourceOwner,
+				sourceRepo,
+				forkedOwner,
+				forkedRepo,
+			);
+
+			// Assert
+			expect(mockForkRepo.create).toHaveBeenCalledTimes(1);
+			expect(mockForkRepo.create).toHaveBeenCalledWith(
+				expect.objectContaining({
+					originalOwner: sourceOwner,
+					originalRepo: sourceRepo,
+					forkOwner: forkedOwner,
+					forkRepo: forkedRepo,
+				}),
+			);
+			expect(result.original_owner).toBe(sourceOwner);
+			expect(result.original_repo).toBe(sourceRepo);
+			expect(result.fork_owner).toBe(forkedOwner);
+			expect(result.fork_repo).toBe(forkedRepo);
+		});
+	});
+
+	describe("deleteFork", () => {
+		it("should delete a fork successfully", async () => {
+			// Arrange
+			const sourceOwner = "original-owner";
+			const sourceRepo = "original-repo";
+			const forkedOwner = "fork-owner";
+			const forkedRepo = "forked-repo";
+
+			const fork = new ForkEntity({
+				originalOwner: sourceOwner,
+				originalRepo: sourceRepo,
+				forkOwner: forkedOwner,
+				forkRepo: forkedRepo,
+			});
+
+			mockForkRepo.get.mockResolvedValue(fork);
+			mockForkRepo.delete.mockResolvedValue(undefined);
+
+			// Act
+			await repoService.deleteFork(
+				sourceOwner,
+				sourceRepo,
+				forkedOwner,
+				forkedRepo,
+			);
+
+			// Assert
+			expect(mockForkRepo.get).toHaveBeenCalledWith(
+				sourceOwner,
+				sourceRepo,
+				forkedOwner,
+			);
+			expect(mockForkRepo.delete).toHaveBeenCalledWith(
+				sourceOwner,
+				sourceRepo,
+				forkedOwner,
+			);
+		});
+
+		it("should throw EntityNotFoundError when fork does not exist", async () => {
+			// Arrange
+			const sourceOwner = "original-owner";
+			const sourceRepo = "original-repo";
+			const forkedOwner = "fork-owner";
+			const forkedRepo = "forked-repo";
+
+			mockForkRepo.get.mockResolvedValue(undefined);
+
+			// Act & Assert
+			await expect(
+				repoService.deleteFork(
+					sourceOwner,
+					sourceRepo,
+					forkedOwner,
+					forkedRepo,
+				),
+			).rejects.toThrow(EntityNotFoundError);
+			expect(mockForkRepo.delete).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("listForks", () => {
+		it("should return array of forks for a repository", async () => {
+			// Arrange
+			const sourceOwner = "original-owner";
+			const sourceRepo = "original-repo";
+			const mockForks = [
+				new ForkEntity({
+					originalOwner: sourceOwner,
+					originalRepo: sourceRepo,
+					forkOwner: "user1",
+					forkRepo: "fork1",
+				}),
+				new ForkEntity({
+					originalOwner: sourceOwner,
+					originalRepo: sourceRepo,
+					forkOwner: "user2",
+					forkRepo: "fork2",
+				}),
+			];
+
+			mockForkRepo.listForksOfRepo.mockResolvedValue(mockForks);
+
+			// Act
+			const result = await repoService.listForks(sourceOwner, sourceRepo);
+
+			// Assert
+			expect(mockForkRepo.listForksOfRepo).toHaveBeenCalledWith(
+				sourceOwner,
+				sourceRepo,
+			);
+			expect(result).toHaveLength(2);
+			expect(result[0].fork_owner).toBe("user1");
+			expect(result[0].fork_repo).toBe("fork1");
+			expect(result[1].fork_owner).toBe("user2");
+			expect(result[1].fork_repo).toBe("fork2");
+		});
+
+		it("should return empty array when repository has no forks", async () => {
+			// Arrange
+			const sourceOwner = "original-owner";
+			const sourceRepo = "original-repo";
+			mockForkRepo.listForksOfRepo.mockResolvedValue([]);
+
+			// Act
+			const result = await repoService.listForks(sourceOwner, sourceRepo);
+
+			// Assert
+			expect(result).toEqual([]);
+		});
+	});
+
+	describe("getFork", () => {
+		it("should return fork when it exists", async () => {
+			// Arrange
+			const sourceOwner = "original-owner";
+			const sourceRepo = "original-repo";
+			const forkedOwner = "fork-owner";
+			const forkedRepo = "forked-repo";
+
+			const fork = new ForkEntity({
+				originalOwner: sourceOwner,
+				originalRepo: sourceRepo,
+				forkOwner: forkedOwner,
+				forkRepo: forkedRepo,
+			});
+
+			mockForkRepo.get.mockResolvedValue(fork);
+
+			// Act
+			const result = await repoService.getFork(
+				sourceOwner,
+				sourceRepo,
+				forkedOwner,
+				forkedRepo,
+			);
+
+			// Assert
+			expect(mockForkRepo.get).toHaveBeenCalledWith(
+				sourceOwner,
+				sourceRepo,
+				forkedOwner,
+			);
+			expect(result).toBeDefined();
+			expect(result?.original_owner).toBe(sourceOwner);
+			expect(result?.fork_owner).toBe(forkedOwner);
+		});
+
+		it("should return undefined when fork does not exist", async () => {
+			// Arrange
+			const sourceOwner = "original-owner";
+			const sourceRepo = "original-repo";
+			const forkedOwner = "fork-owner";
+			const forkedRepo = "forked-repo";
+
+			mockForkRepo.get.mockResolvedValue(undefined);
+
+			// Act
+			const result = await repoService.getFork(
+				sourceOwner,
+				sourceRepo,
+				forkedOwner,
+				forkedRepo,
+			);
+
+			// Assert
+			expect(result).toBeUndefined();
 		});
 	});
 });

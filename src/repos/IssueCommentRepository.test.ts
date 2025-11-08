@@ -9,6 +9,7 @@ import { IssueCommentEntity } from "../services/entities/IssueCommentEntity";
 import { IssueEntity } from "../services/entities/IssueEntity";
 import { RepositoryEntity } from "../services/entities/RepositoryEntity";
 import { UserEntity } from "../services/entities/UserEntity";
+import { EntityNotFoundError } from "../shared";
 
 describe("IssueCommentRepository", () => {
 	let client: DynamoDBClient;
@@ -146,7 +147,7 @@ describe("IssueCommentRepository", () => {
 			);
 		});
 
-		it("should throw ValidationError when issue doesn't exist", async () => {
+		it("should throw EntityNotFoundError when issue doesn't exist", async () => {
 			const comment = IssueCommentEntity.fromRequest({
 				owner: testOwner,
 				repo_name: testRepoName,
@@ -155,7 +156,9 @@ describe("IssueCommentRepository", () => {
 				author: testUsername,
 			});
 
-			await expect(commentRepo.create(comment)).rejects.toThrow();
+			await expect(commentRepo.create(comment)).rejects.toThrow(
+				EntityNotFoundError,
+			);
 		});
 	});
 

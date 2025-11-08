@@ -7,16 +7,7 @@ import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import swagger from "@fastify/swagger";
 import swaggerUI from "@fastify/swagger-ui";
 import { Config } from "./config";
-import {
-	IssueRoutes,
-	OrganizationRoutes,
-	PullRequestRoutes,
-	RepositoryRoutes,
-	StarRoutes,
-	StarUserRoutes,
-	StarRepoRoutes,
-	UserRoutes,
-} from "./routes";
+import { OrganizationRoutes, RepositoryRoutes, UserRoutes } from "./routes";
 import { errorHandlerPlugin } from "./routes/errorHandler";
 import { buildServices, type Services, servicesPlugin } from "./services";
 
@@ -67,17 +58,7 @@ async function createApp({ config, services }: AppOpts) {
 					name: "Pull Request",
 					description: "Pull request management endpoints",
 				},
-				{
-					name: "Comment",
-					description: "Comment management endpoints for issues and PRs",
-				},
-				{
-					name: "Reaction",
-					description:
-						"Reaction management endpoints for issues, PRs, and comments",
-				},
 				{ name: "Fork", description: "Fork management endpoints" },
-				{ name: "Star", description: "Star management endpoints" },
 			],
 		},
 	});
@@ -97,22 +78,8 @@ async function createApp({ config, services }: AppOpts) {
 	app.register(UserRoutes, { prefix: "/v1/users" });
 	app.register(OrganizationRoutes, { prefix: "/v1/organizations" });
 	app.register(RepositoryRoutes, { prefix: "/v1/repositories" });
-	// Register IssueRoutes nested under repositories
-	app.register(IssueRoutes, {
-		prefix: "/v1/repositories/:owner/:repoName/issues",
-	});
-	// Register PullRequestRoutes nested under repositories
-	app.register(PullRequestRoutes, {
-		prefix: "/v1/repositories/:owner/:repoName/pulls",
-	});
-	// Comment and Reaction routes are now handled within IssueRoutes and PullRequestRoutes
-	// Fork routes are now handled within RepositoryRoutes
-	// Register StarRoutes (will be updated to use repositoryService)
-	app.register(StarRoutes, { prefix: "/v1/user/starred" });
-	// Register StarUserRoutes
-	app.register(StarUserRoutes, { prefix: "/v1/users" });
-	// Register StarRepoRoutes
-	app.register(StarRepoRoutes, { prefix: "/v1/repositories" });
+	// All child routes (Comments, Reactions, Stars, Forks, Pull Requests, Issues) are nested within RepositoryRoutes
+	// RepositoryRoutes handles: Stars, Forks, Pull Requests (with Comments and Reactions), and Issues (with Comments and Reactions)
 
 	// Health check endpoint
 	app.get("/health", async () => {

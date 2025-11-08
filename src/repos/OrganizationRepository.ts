@@ -1,17 +1,11 @@
-import { ConditionalCheckFailedException } from "@aws-sdk/client-dynamodb";
 import {
 	DeleteItemCommand,
 	GetItemCommand,
 	PutItemCommand,
-	DynamoDBToolboxError,
 } from "dynamodb-toolbox";
 import { OrganizationEntity } from "../services/entities/OrganizationEntity";
-import {
-	DuplicateEntityError,
-	EntityNotFoundError,
-	ValidationError,
-} from "../shared";
 import type { OrganizationRecord } from "./schema";
+import { handleCreateError, handleUpdateError } from "./utils";
 
 export class OrganizationRepository {
 	private readonly record: OrganizationRecord;
@@ -30,13 +24,7 @@ export class OrganizationRepository {
 
 			return OrganizationEntity.fromRecord(result.ToolboxItem);
 		} catch (error: unknown) {
-			if (error instanceof ConditionalCheckFailedException) {
-				throw new DuplicateEntityError("OrganizationEntity", entity.orgName);
-			}
-			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError(error.path ?? "organization", error.message);
-			}
-			throw error;
+			handleCreateError(error, "OrganizationEntity", entity.getEntityKey());
 		}
 	}
 
@@ -59,13 +47,7 @@ export class OrganizationRepository {
 
 			return OrganizationEntity.fromRecord(result.ToolboxItem);
 		} catch (error: unknown) {
-			if (error instanceof ConditionalCheckFailedException) {
-				throw new EntityNotFoundError("OrganizationEntity", entity.orgName);
-			}
-			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError("", error.message);
-			}
-			throw error;
+			handleUpdateError(error, "OrganizationEntity", entity.getEntityKey());
 		}
 	}
 

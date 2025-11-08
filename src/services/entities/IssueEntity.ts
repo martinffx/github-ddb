@@ -268,6 +268,22 @@ class IssueEntity {
 			throw new ValidationError("status", "Status must be 'open' or 'closed'");
 		}
 	}
+
+	/**
+	 * Get the entity key for error messages and logging
+	 * Returns a string representation that uniquely identifies this entity
+	 */
+	public getEntityKey(): string {
+		return `ISSUE#${this.owner}#${this.repoName}#${this.issueNumber}`;
+	}
+
+	/**
+	 * Get the parent entity key (Repository) for error messages
+	 * Returns a string representation that identifies the parent repository
+	 */
+	public getParentEntityKey(): string {
+		return `REPO#${this.owner}#${this.repoName}`;
+	}
 }
 
 export { IssueEntity };

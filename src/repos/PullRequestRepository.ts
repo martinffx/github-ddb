@@ -1,11 +1,6 @@
 import {
-	ConditionalCheckFailedException,
-	TransactionCanceledException,
-} from "@aws-sdk/client-dynamodb";
-import {
 	ConditionCheck,
 	DeleteItemCommand,
-	DynamoDBToolboxError,
 	GetItemCommand,
 	PutItemCommand,
 	QueryCommand,
@@ -22,7 +17,7 @@ import type {
 	PullRequestFormatted,
 } from "./schema";
 import { PullRequestEntity } from "../services/entities/PullRequestEntity";
-import { EntityNotFoundError, ValidationError } from "../shared";
+import { handleTransactionError, handleUpdateError } from "./utils";
 
 export class PullRequestRepository {
 	private readonly table: GithubTable;
@@ -47,24 +42,24 @@ export class PullRequestRepository {
 	 * Uses CounterRepository to get next PR number atomically (shared with Issues)
 	 */
 	async create(pr: PullRequestEntity): Promise<PullRequestEntity> {
+		// Get next PR number from counter (atomic operation, shared with Issues)
+		const prNumber = await this.incrementCounter(pr.owner, pr.repoName);
+
+		// Create PR entity with assigned number
+		const prWithNumber = new PullRequestEntity({
+			owner: pr.owner,
+			repoName: pr.repoName,
+			prNumber,
+			title: pr.title,
+			body: pr.body,
+			status: pr.status,
+			author: pr.author,
+			sourceBranch: pr.sourceBranch,
+			targetBranch: pr.targetBranch,
+			mergeCommitSha: pr.mergeCommitSha,
+		});
+
 		try {
-			// Get next PR number from counter (atomic operation, shared with Issues)
-			const prNumber = await this.incrementCounter(pr.owner, pr.repoName);
-
-			// Create PR entity with assigned number
-			const prWithNumber = new PullRequestEntity({
-				owner: pr.owner,
-				repoName: pr.repoName,
-				prNumber,
-				title: pr.title,
-				body: pr.body,
-				status: pr.status,
-				author: pr.author,
-				sourceBranch: pr.sourceBranch,
-				targetBranch: pr.targetBranch,
-				mergeCommitSha: pr.mergeCommitSha,
-			});
-
 			// Build transaction to put PR with duplicate check
 			const putPRTransaction = this.record
 				.build(PutTransaction)
@@ -92,20 +87,13 @@ export class PullRequestRepository {
 
 			return created;
 		} catch (error: unknown) {
-			if (
-				error instanceof TransactionCanceledException ||
-				error instanceof ConditionalCheckFailedException
-			) {
-				// Transaction failed - could be duplicate PR or missing repository
-				throw new ValidationError(
-					"repository",
-					`Repository '${pr.owner}/${pr.repoName}' does not exist`,
-				);
-			}
-			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError(error.path ?? "pull_request", error.message);
-			}
-			throw error;
+			handleTransactionError(error, {
+				entityType: "PullRequestEntity",
+				entityKey: prWithNumber.getEntityKey(),
+				parentEntityType: "RepositoryEntity",
+				parentEntityKey: pr.getParentEntityKey(),
+				operationName: "pull_request",
+			});
 		}
 	}
 
@@ -131,15 +119,15 @@ export class PullRequestRepository {
 
 	/**
 	 * List all pull requests for a repository
-	 * Uses main table query with PK
+	 * Uses GSI1 to avoid hot partition on main table
 	 */
 	async list(owner: string, repoName: string): Promise<PullRequestEntity[]> {
 		const result = await this.table
 			.build(QueryCommand)
 			.entities(this.record)
 			.query({
-				partition: `REPO#${owner}#${repoName}`,
-				range: { beginsWith: "PR#" },
+				partition: `PR#${owner}#${repoName}`,
+				index: "GSI1",
 			})
 			.send();
 
@@ -164,7 +152,7 @@ export class PullRequestRepository {
 			.build(QueryCommand)
 			.entities(this.record)
 			.query({
-				partition: `REPO#${owner}#${repoName}`,
+				partition: `PR#${owner}#${repoName}`,
 				index: "GSI4",
 				range: {
 					beginsWith:
@@ -200,16 +188,7 @@ export class PullRequestRepository {
 
 			return PullRequestEntity.fromRecord(result.ToolboxItem);
 		} catch (error: unknown) {
-			if (error instanceof ConditionalCheckFailedException) {
-				throw new EntityNotFoundError(
-					"PullRequestEntity",
-					`PR#${pr.owner}#${pr.repoName}#${pr.prNumber}`,
-				);
-			}
-			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError(error.path ?? "pull_request", error.message);
-			}
-			throw error;
+			handleUpdateError(error, "PullRequestEntity", pr.getEntityKey());
 		}
 	}
 

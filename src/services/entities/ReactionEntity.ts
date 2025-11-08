@@ -191,6 +191,22 @@ class ReactionEntity {
 			throw new ValidationError("emoji", "Emoji must be a valid unicode emoji");
 		}
 	}
+
+	/**
+	 * Get the entity key for error messages and logging
+	 * Returns a string representation that uniquely identifies this entity
+	 */
+	public getEntityKey(): string {
+		return `REACTION#${this.owner}#${this.repoName}#${this.targetType}#${this.targetId}#${this.user}#${this.emoji}`;
+	}
+
+	/**
+	 * Get the parent entity key (the target: Issue, PR, or Comment)
+	 * Returns a string representation of the parent entity for error messages
+	 */
+	public getParentEntityKey(): string {
+		return `${this.targetType}#${this.owner}#${this.repoName}#${this.targetId}`;
+	}
 }
 
 export { ReactionEntity };

@@ -115,6 +115,22 @@ class RepositoryEntity {
 			modified: DateTime.utc(),
 		});
 	}
+
+	/**
+	 * Get the entity key for error messages and logging
+	 * Returns a string representation that uniquely identifies this entity
+	 */
+	public getEntityKey(): string {
+		return `REPO#${this.owner}#${this.repoName}`;
+	}
+
+	/**
+	 * Get the parent entity key (the owner: User or Organization)
+	 * Returns a string representation of the parent entity for error messages
+	 */
+	public getParentEntityKey(): string {
+		return `ACCOUNT#${this.owner}`;
+	}
 }
 
 export { RepositoryEntity, type RepositoryId };

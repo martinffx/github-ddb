@@ -6,7 +6,7 @@ import { initializeSchema, createTableParams } from "./schema";
 import { StarEntity } from "../services/entities/StarEntity";
 import { RepositoryEntity } from "../services/entities/RepositoryEntity";
 import { UserEntity } from "../services/entities/UserEntity";
-import { DuplicateEntityError, ValidationError } from "../shared";
+import { DuplicateEntityError, EntityNotFoundError } from "../shared";
 
 const dynamoClient = new DynamoDBClient({
 	endpoint: "http://localhost:8000",
@@ -174,7 +174,7 @@ describe("StarRepository", () => {
 				repo_name: repoName,
 			});
 
-			await expect(starRepo.create(star)).rejects.toThrow(ValidationError);
+			await expect(starRepo.create(star)).rejects.toThrow(EntityNotFoundError);
 
 			// Cleanup
 			await repoRepo.deleteRepo({ owner: repoOwner, repo_name: repoName });
@@ -200,7 +200,7 @@ describe("StarRepository", () => {
 				repo_name: repoName,
 			});
 
-			await expect(starRepo.create(star)).rejects.toThrow(ValidationError);
+			await expect(starRepo.create(star)).rejects.toThrow(EntityNotFoundError);
 
 			// Cleanup
 			await userRepo.deleteUser(username);

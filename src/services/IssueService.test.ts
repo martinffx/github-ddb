@@ -4,7 +4,7 @@ import type {
 	IssueCommentRepository,
 	ReactionRepository,
 } from "../repos";
-import { IssueEntity } from "./entities";
+import { IssueEntity, IssueCommentEntity, ReactionEntity } from "./entities";
 import { EntityNotFoundError, ValidationError } from "../shared";
 import type { IssueCreateRequest, IssueUpdateRequest } from "../routes/schema";
 
@@ -500,6 +500,605 @@ describe("IssueService", () => {
 				issueService.deleteIssue("testowner", "testrepo", 999),
 			).rejects.toThrow(EntityNotFoundError);
 			expect(mockIssueRepo.delete).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("createComment", () => {
+		it("should create a new comment on an issue successfully", async () => {
+			// Arrange
+			const createdComment = new IssueCommentEntity({
+				owner: "testowner",
+				repoName: "testrepo",
+				issueNumber: 1,
+				commentId: "comment-uuid-123",
+				body: "This is a test comment",
+				author: "commenter",
+			});
+
+			mockIssueCommentRepo.create.mockResolvedValue(createdComment);
+
+			// Act
+			const result = await issueService.createComment(
+				"testowner",
+				"testrepo",
+				1,
+				"commenter",
+				"This is a test comment",
+			);
+
+			// Assert
+			expect(mockIssueCommentRepo.create).toHaveBeenCalledTimes(1);
+			expect(mockIssueCommentRepo.create).toHaveBeenCalledWith(
+				expect.objectContaining({
+					owner: "testowner",
+					repoName: "testrepo",
+					issueNumber: 1,
+					author: "commenter",
+					body: "This is a test comment",
+				}),
+			);
+			expect(result.comment_id).toBe("comment-uuid-123");
+			expect(result.body).toBe("This is a test comment");
+		});
+
+		it("should throw ValidationError for empty comment body", async () => {
+			// Act & Assert
+			await expect(
+				issueService.createComment("testowner", "testrepo", 1, "commenter", ""),
+			).rejects.toThrow(ValidationError);
+			expect(mockIssueCommentRepo.create).not.toHaveBeenCalled();
+		});
+
+		it("should throw ValidationError when issue does not exist", async () => {
+			// Arrange
+			mockIssueCommentRepo.create.mockRejectedValue(
+				new ValidationError(
+					"issue",
+					"Issue 'testowner/testrepo#999' does not exist",
+				),
+			);
+
+			// Act & Assert
+			await expect(
+				issueService.createComment(
+					"testowner",
+					"testrepo",
+					999,
+					"commenter",
+					"Test comment",
+				),
+			).rejects.toThrow(ValidationError);
+		});
+	});
+
+	describe("getComment", () => {
+		it("should retrieve an existing comment", async () => {
+			// Arrange
+			const comment = new IssueCommentEntity({
+				owner: "testowner",
+				repoName: "testrepo",
+				issueNumber: 1,
+				commentId: "comment-uuid-123",
+				body: "Test comment",
+				author: "commenter",
+			});
+
+			mockIssueCommentRepo.get.mockResolvedValue(comment);
+
+			// Act
+			const result = await issueService.getComment(
+				"testowner",
+				"testrepo",
+				1,
+				"comment-uuid-123",
+			);
+
+			// Assert
+			expect(mockIssueCommentRepo.get).toHaveBeenCalledWith(
+				"testowner",
+				"testrepo",
+				1,
+				"comment-uuid-123",
+			);
+			expect(result.comment_id).toBe("comment-uuid-123");
+			expect(result.body).toBe("Test comment");
+		});
+
+		it("should throw EntityNotFoundError for non-existent comment", async () => {
+			// Arrange
+			mockIssueCommentRepo.get.mockResolvedValue(undefined);
+
+			// Act & Assert
+			await expect(
+				issueService.getComment("testowner", "testrepo", 1, "nonexistent"),
+			).rejects.toThrow(EntityNotFoundError);
+		});
+	});
+
+	describe("listComments", () => {
+		it("should list all comments for an issue", async () => {
+			// Arrange
+			const comments = [
+				new IssueCommentEntity({
+					owner: "testowner",
+					repoName: "testrepo",
+					issueNumber: 1,
+					commentId: "comment-1",
+					body: "First comment",
+					author: "user1",
+				}),
+				new IssueCommentEntity({
+					owner: "testowner",
+					repoName: "testrepo",
+					issueNumber: 1,
+					commentId: "comment-2",
+					body: "Second comment",
+					author: "user2",
+				}),
+			];
+
+			mockIssueCommentRepo.listByIssue.mockResolvedValue(comments);
+
+			// Act
+			const result = await issueService.listComments(
+				"testowner",
+				"testrepo",
+				1,
+			);
+
+			// Assert
+			expect(mockIssueCommentRepo.listByIssue).toHaveBeenCalledWith(
+				"testowner",
+				"testrepo",
+				1,
+			);
+			expect(result).toHaveLength(2);
+			expect(result[0].comment_id).toBe("comment-1");
+			expect(result[1].comment_id).toBe("comment-2");
+		});
+
+		it("should return empty array when no comments exist", async () => {
+			// Arrange
+			mockIssueCommentRepo.listByIssue.mockResolvedValue([]);
+
+			// Act
+			const result = await issueService.listComments(
+				"testowner",
+				"testrepo",
+				1,
+			);
+
+			// Assert
+			expect(result).toEqual([]);
+		});
+	});
+
+	describe("updateComment", () => {
+		it("should update an existing comment successfully", async () => {
+			// Arrange
+			const existingComment = new IssueCommentEntity({
+				owner: "testowner",
+				repoName: "testrepo",
+				issueNumber: 1,
+				commentId: "comment-uuid-123",
+				body: "Old comment",
+				author: "commenter",
+			});
+
+			const updatedComment = existingComment.updateWith({
+				body: "Updated comment",
+			});
+
+			mockIssueCommentRepo.get.mockResolvedValue(existingComment);
+			mockIssueCommentRepo.update.mockResolvedValue(updatedComment);
+
+			// Act
+			const result = await issueService.updateComment(
+				"testowner",
+				"testrepo",
+				1,
+				"comment-uuid-123",
+				"Updated comment",
+			);
+
+			// Assert
+			expect(mockIssueCommentRepo.get).toHaveBeenCalledWith(
+				"testowner",
+				"testrepo",
+				1,
+				"comment-uuid-123",
+			);
+			expect(mockIssueCommentRepo.update).toHaveBeenCalledTimes(1);
+			expect(result.body).toBe("Updated comment");
+		});
+
+		it("should throw EntityNotFoundError when comment does not exist", async () => {
+			// Arrange
+			mockIssueCommentRepo.get.mockResolvedValue(undefined);
+
+			// Act & Assert
+			await expect(
+				issueService.updateComment(
+					"testowner",
+					"testrepo",
+					1,
+					"nonexistent",
+					"Updated body",
+				),
+			).rejects.toThrow(EntityNotFoundError);
+			expect(mockIssueCommentRepo.update).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("deleteComment", () => {
+		it("should delete an existing comment successfully", async () => {
+			// Arrange
+			const existingComment = new IssueCommentEntity({
+				owner: "testowner",
+				repoName: "testrepo",
+				issueNumber: 1,
+				commentId: "comment-uuid-123",
+				body: "Test comment",
+				author: "commenter",
+			});
+
+			mockIssueCommentRepo.get.mockResolvedValue(existingComment);
+			mockIssueCommentRepo.delete.mockResolvedValue(undefined);
+
+			// Act
+			await issueService.deleteComment(
+				"testowner",
+				"testrepo",
+				1,
+				"comment-uuid-123",
+			);
+
+			// Assert
+			expect(mockIssueCommentRepo.get).toHaveBeenCalledWith(
+				"testowner",
+				"testrepo",
+				1,
+				"comment-uuid-123",
+			);
+			expect(mockIssueCommentRepo.delete).toHaveBeenCalledWith(
+				"testowner",
+				"testrepo",
+				1,
+				"comment-uuid-123",
+			);
+		});
+
+		it("should throw EntityNotFoundError when comment does not exist", async () => {
+			// Arrange
+			mockIssueCommentRepo.get.mockResolvedValue(undefined);
+
+			// Act & Assert
+			await expect(
+				issueService.deleteComment("testowner", "testrepo", 1, "nonexistent"),
+			).rejects.toThrow(EntityNotFoundError);
+			expect(mockIssueCommentRepo.delete).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("addReaction", () => {
+		it("should add a reaction to an issue successfully", async () => {
+			// Arrange
+			const reaction = new ReactionEntity({
+				owner: "testowner",
+				repoName: "testrepo",
+				targetType: "ISSUE",
+				targetId: "1",
+				user: "reactor",
+				emoji: "👍",
+			});
+
+			mockReactionRepo.create.mockResolvedValue(reaction);
+
+			// Act
+			const result = await issueService.addReaction(
+				"testowner",
+				"testrepo",
+				1,
+				"👍",
+				"reactor",
+			);
+
+			// Assert
+			expect(mockReactionRepo.create).toHaveBeenCalledTimes(1);
+			expect(mockReactionRepo.create).toHaveBeenCalledWith(
+				expect.objectContaining({
+					owner: "testowner",
+					repoName: "testrepo",
+					targetType: "ISSUE",
+					targetId: "1",
+					user: "reactor",
+					emoji: "👍",
+				}),
+			);
+			expect(result.emoji).toBe("👍");
+			expect(result.target_type).toBe("ISSUE");
+		});
+
+		it("should throw ValidationError for duplicate reaction", async () => {
+			// Arrange
+			mockReactionRepo.create.mockRejectedValue(
+				new ValidationError("reaction", "Reaction already exists"),
+			);
+
+			// Act & Assert
+			await expect(
+				issueService.addReaction("testowner", "testrepo", 1, "👍", "reactor"),
+			).rejects.toThrow(ValidationError);
+		});
+
+		it("should throw ValidationError when issue does not exist", async () => {
+			// Arrange
+			mockReactionRepo.create.mockRejectedValue(
+				new ValidationError("target", "Issue does not exist"),
+			);
+
+			// Act & Assert
+			await expect(
+				issueService.addReaction("testowner", "testrepo", 999, "👍", "reactor"),
+			).rejects.toThrow(ValidationError);
+		});
+	});
+
+	describe("removeReaction", () => {
+		it("should remove a reaction from an issue successfully", async () => {
+			// Arrange
+			const existingReaction = new ReactionEntity({
+				owner: "testowner",
+				repoName: "testrepo",
+				targetType: "ISSUE",
+				targetId: "1",
+				user: "reactor",
+				emoji: "👍",
+			});
+
+			mockReactionRepo.get.mockResolvedValue(existingReaction);
+			mockReactionRepo.delete.mockResolvedValue(undefined);
+
+			// Act
+			await issueService.removeReaction(
+				"testowner",
+				"testrepo",
+				1,
+				"👍",
+				"reactor",
+			);
+
+			// Assert
+			expect(mockReactionRepo.get).toHaveBeenCalledWith(
+				"testowner",
+				"testrepo",
+				"ISSUE",
+				"1",
+				"reactor",
+				"👍",
+			);
+			expect(mockReactionRepo.delete).toHaveBeenCalledWith(
+				"testowner",
+				"testrepo",
+				"ISSUE",
+				"1",
+				"reactor",
+				"👍",
+			);
+		});
+
+		it("should throw EntityNotFoundError when reaction does not exist", async () => {
+			// Arrange
+			mockReactionRepo.get.mockResolvedValue(undefined);
+
+			// Act & Assert
+			await expect(
+				issueService.removeReaction(
+					"testowner",
+					"testrepo",
+					1,
+					"👍",
+					"reactor",
+				),
+			).rejects.toThrow(EntityNotFoundError);
+			expect(mockReactionRepo.delete).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("listReactions", () => {
+		it("should list all reactions for an issue", async () => {
+			// Arrange
+			const reactions = [
+				new ReactionEntity({
+					owner: "testowner",
+					repoName: "testrepo",
+					targetType: "ISSUE",
+					targetId: "1",
+					user: "user1",
+					emoji: "👍",
+				}),
+				new ReactionEntity({
+					owner: "testowner",
+					repoName: "testrepo",
+					targetType: "ISSUE",
+					targetId: "1",
+					user: "user2",
+					emoji: "❤️",
+				}),
+			];
+
+			mockReactionRepo.listByTarget.mockResolvedValue(reactions);
+
+			// Act
+			const result = await issueService.listReactions(
+				"testowner",
+				"testrepo",
+				1,
+			);
+
+			// Assert
+			expect(mockReactionRepo.listByTarget).toHaveBeenCalledWith(
+				"testowner",
+				"testrepo",
+				"ISSUE",
+				"1",
+			);
+			expect(result).toHaveLength(2);
+			expect(result[0].emoji).toBe("👍");
+			expect(result[1].emoji).toBe("❤️");
+		});
+
+		it("should apply limit when provided", async () => {
+			// Arrange
+			const reactions = Array.from(
+				{ length: 10 },
+				(_, i) =>
+					new ReactionEntity({
+						owner: "testowner",
+						repoName: "testrepo",
+						targetType: "ISSUE",
+						targetId: "1",
+						user: `user${i}`,
+						emoji: "👍",
+					}),
+			);
+
+			mockReactionRepo.listByTarget.mockResolvedValue(reactions);
+
+			// Act
+			const result = await issueService.listReactions(
+				"testowner",
+				"testrepo",
+				1,
+				5,
+			);
+
+			// Assert
+			expect(result).toHaveLength(5);
+		});
+
+		it("should return empty array when no reactions exist", async () => {
+			// Arrange
+			mockReactionRepo.listByTarget.mockResolvedValue([]);
+
+			// Act
+			const result = await issueService.listReactions(
+				"testowner",
+				"testrepo",
+				1,
+			);
+
+			// Assert
+			expect(result).toEqual([]);
+		});
+	});
+
+	describe("getReactionsByEmoji", () => {
+		it("should get reactions filtered by emoji", async () => {
+			// Arrange
+			const reactions = [
+				new ReactionEntity({
+					owner: "testowner",
+					repoName: "testrepo",
+					targetType: "ISSUE",
+					targetId: "1",
+					user: "user1",
+					emoji: "👍",
+				}),
+				new ReactionEntity({
+					owner: "testowner",
+					repoName: "testrepo",
+					targetType: "ISSUE",
+					targetId: "1",
+					user: "user2",
+					emoji: "❤️",
+				}),
+				new ReactionEntity({
+					owner: "testowner",
+					repoName: "testrepo",
+					targetType: "ISSUE",
+					targetId: "1",
+					user: "user3",
+					emoji: "👍",
+				}),
+			];
+
+			mockReactionRepo.listByTarget.mockResolvedValue(reactions);
+
+			// Act
+			const result = await issueService.getReactionsByEmoji(
+				"testowner",
+				"testrepo",
+				1,
+				"👍",
+			);
+
+			// Assert
+			expect(mockReactionRepo.listByTarget).toHaveBeenCalledWith(
+				"testowner",
+				"testrepo",
+				"ISSUE",
+				"1",
+			);
+			expect(result).toHaveLength(2);
+			expect(result.every((r) => r.emoji === "👍")).toBe(true);
+		});
+
+		it("should apply limit to filtered reactions", async () => {
+			// Arrange
+			const reactions = Array.from(
+				{ length: 10 },
+				(_, i) =>
+					new ReactionEntity({
+						owner: "testowner",
+						repoName: "testrepo",
+						targetType: "ISSUE",
+						targetId: "1",
+						user: `user${i}`,
+						emoji: "👍",
+					}),
+			);
+
+			mockReactionRepo.listByTarget.mockResolvedValue(reactions);
+
+			// Act
+			const result = await issueService.getReactionsByEmoji(
+				"testowner",
+				"testrepo",
+				1,
+				"👍",
+				3,
+			);
+
+			// Assert
+			expect(result).toHaveLength(3);
+		});
+
+		it("should return empty array when no reactions match emoji", async () => {
+			// Arrange
+			const reactions = [
+				new ReactionEntity({
+					owner: "testowner",
+					repoName: "testrepo",
+					targetType: "ISSUE",
+					targetId: "1",
+					user: "user1",
+					emoji: "❤️",
+				}),
+			];
+
+			mockReactionRepo.listByTarget.mockResolvedValue(reactions);
+
+			// Act
+			const result = await issueService.getReactionsByEmoji(
+				"testowner",
+				"testrepo",
+				1,
+				"👍",
+			);
+
+			// Assert
+			expect(result).toEqual([]);
 		});
 	});
 });

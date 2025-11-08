@@ -1,11 +1,6 @@
 import {
-	ConditionalCheckFailedException,
-	TransactionCanceledException,
-} from "@aws-sdk/client-dynamodb";
-import {
 	ConditionCheck,
 	DeleteItemCommand,
-	DynamoDBToolboxError,
 	GetItemCommand,
 	QueryCommand,
 } from "dynamodb-toolbox";
@@ -22,6 +17,7 @@ import type {
 } from "./schema";
 import { ReactionEntity } from "../services/entities/ReactionEntity";
 import { ValidationError } from "../shared";
+import { handleTransactionError } from "./utils";
 
 export class ReactionRepository {
 	private readonly table: GithubTable;
@@ -86,20 +82,13 @@ export class ReactionRepository {
 
 			return created;
 		} catch (error: unknown) {
-			if (
-				error instanceof TransactionCanceledException ||
-				error instanceof ConditionalCheckFailedException
-			) {
-				// Transaction failed - could be duplicate reaction or missing target
-				throw new ValidationError(
-					"target",
-					`Target '${reaction.targetType}#${reaction.targetId}' does not exist or reaction already exists`,
-				);
-			}
-			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError(error.path ?? "reaction", error.message);
-			}
-			throw error;
+			handleTransactionError(error, {
+				entityType: "Reaction",
+				entityKey: reaction.getEntityKey(),
+				parentEntityType: this.getParentEntityType(reaction.targetType),
+				parentEntityKey: reaction.getParentEntityKey(),
+				operationName: "reaction",
+			});
 		}
 	}
 
@@ -227,6 +216,12 @@ export class ReactionRepository {
 			case "ISSUE": {
 				// targetId is issue_number
 				const issueNumber = Number.parseInt(targetId, 10);
+				if (Number.isNaN(issueNumber)) {
+					throw new ValidationError(
+						"target_id",
+						"ISSUE target_id must be a valid number",
+					);
+				}
 				return this.issueRecord
 					.build(ConditionCheck)
 					.key({
@@ -239,6 +234,12 @@ export class ReactionRepository {
 			case "PR": {
 				// targetId is pr_number
 				const prNumber = Number.parseInt(targetId, 10);
+				if (Number.isNaN(prNumber)) {
+					throw new ValidationError(
+						"target_id",
+						"PR target_id must be a valid number",
+					);
+				}
 				return this.pullRequestRecord
 					.build(ConditionCheck)
 					.key({
@@ -251,9 +252,21 @@ export class ReactionRepository {
 			case "ISSUECOMMENT": {
 				// targetId format: "issueNumber-commentId"
 				const dashIndex = targetId.indexOf("-");
+				if (dashIndex === -1) {
+					throw new ValidationError(
+						"target_id",
+						"ISSUECOMMENT target_id must be in format 'issueNumber-commentId'",
+					);
+				}
 				const issueNumberStr = targetId.substring(0, dashIndex);
 				const commentId = targetId.substring(dashIndex + 1);
 				const issueNumber = Number.parseInt(issueNumberStr, 10);
+				if (Number.isNaN(issueNumber) || !commentId) {
+					throw new ValidationError(
+						"target_id",
+						"Invalid ISSUECOMMENT target_id format",
+					);
+				}
 				return this.issueCommentRecord
 					.build(ConditionCheck)
 					.key({
@@ -267,9 +280,21 @@ export class ReactionRepository {
 			case "PRCOMMENT": {
 				// targetId format: "prNumber-commentId"
 				const dashIndex = targetId.indexOf("-");
+				if (dashIndex === -1) {
+					throw new ValidationError(
+						"target_id",
+						"PRCOMMENT target_id must be in format 'prNumber-commentId'",
+					);
+				}
 				const prNumberStr = targetId.substring(0, dashIndex);
 				const commentId = targetId.substring(dashIndex + 1);
 				const prNumber = Number.parseInt(prNumberStr, 10);
+				if (Number.isNaN(prNumber) || !commentId) {
+					throw new ValidationError(
+						"target_id",
+						"Invalid PRCOMMENT target_id format",
+					);
+				}
 				return this.prCommentRecord
 					.build(ConditionCheck)
 					.key({
@@ -280,6 +305,24 @@ export class ReactionRepository {
 					})
 					.condition({ attr: "PK", exists: true });
 			}
+		}
+	}
+
+	/**
+	 * Private helper to get parent entity type name from target type
+	 */
+	private getParentEntityType(
+		targetType: "ISSUE" | "PR" | "ISSUECOMMENT" | "PRCOMMENT",
+	): string {
+		switch (targetType) {
+			case "ISSUE":
+				return "IssueEntity";
+			case "PR":
+				return "PullRequestEntity";
+			case "ISSUECOMMENT":
+				return "IssueCommentEntity";
+			case "PRCOMMENT":
+				return "PRCommentEntity";
 		}
 	}
 }

@@ -1,11 +1,6 @@
 import {
-	ConditionalCheckFailedException,
-	TransactionCanceledException,
-} from "@aws-sdk/client-dynamodb";
-import {
 	ConditionCheck,
 	DeleteItemCommand,
-	DynamoDBToolboxError,
 	GetItemCommand,
 	PutItemCommand,
 	QueryCommand,
@@ -19,7 +14,7 @@ import type {
 	IssueCommentFormatted,
 } from "./schema";
 import { IssueCommentEntity } from "../services/entities/IssueCommentEntity";
-import { EntityNotFoundError, ValidationError } from "../shared";
+import { handleTransactionError, handleUpdateError } from "./utils";
 
 export class IssueCommentRepository {
 	private readonly table: GithubTable;
@@ -85,20 +80,13 @@ export class IssueCommentRepository {
 
 			return created;
 		} catch (error: unknown) {
-			if (
-				error instanceof TransactionCanceledException ||
-				error instanceof ConditionalCheckFailedException
-			) {
-				// Transaction failed - could be duplicate comment or missing issue
-				throw new ValidationError(
-					"issue",
-					`Issue '${comment.owner}/${comment.repoName}#${comment.issueNumber}' does not exist`,
-				);
-			}
-			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError(error.path ?? "comment", error.message);
-			}
-			throw error;
+			handleTransactionError(error, {
+				entityType: "IssueCommentEntity",
+				entityKey: comment.getEntityKey(),
+				parentEntityType: "IssueEntity",
+				parentEntityKey: comment.getParentEntityKey(),
+				operationName: "comment",
+			});
 		}
 	}
 
@@ -139,16 +127,7 @@ export class IssueCommentRepository {
 
 			return IssueCommentEntity.fromRecord(result.ToolboxItem);
 		} catch (error: unknown) {
-			if (error instanceof ConditionalCheckFailedException) {
-				throw new EntityNotFoundError(
-					"IssueCommentEntity",
-					`COMMENT#${comment.owner}#${comment.repoName}#${comment.issueNumber}#${comment.commentId}`,
-				);
-			}
-			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError(error.path ?? "comment", error.message);
-			}
-			throw error;
+			handleUpdateError(error, "IssueCommentEntity", comment.getEntityKey());
 		}
 	}
 
@@ -187,7 +166,7 @@ export class IssueCommentRepository {
 			.query({
 				partition: `REPO#${owner}#${repoName}`,
 				range: {
-					beginsWith: `ISSUE#${String(issueNumber).padStart(6, "0")}#COMMENT#`,
+					beginsWith: `ISSUE#${String(issueNumber).padStart(8, "0")}#COMMENT#`,
 				},
 			})
 			.send();

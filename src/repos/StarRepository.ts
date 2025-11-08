@@ -1,7 +1,4 @@
-import {
-	ConditionalCheckFailedException,
-	TransactionCanceledException,
-} from "@aws-sdk/client-dynamodb";
+import { TransactionCanceledException } from "@aws-sdk/client-dynamodb";
 import {
 	ConditionCheck,
 	DeleteItemCommand,
@@ -19,7 +16,11 @@ import type {
 	StarFormatted,
 } from "./schema";
 import { StarEntity } from "../services/entities/StarEntity";
-import { DuplicateEntityError, ValidationError } from "../shared";
+import {
+	DuplicateEntityError,
+	EntityNotFoundError,
+	ValidationError,
+} from "../shared";
 
 export class StarRepository {
 	private readonly table: GithubTable;
@@ -74,36 +75,56 @@ export class StarRepository {
 
 			return created;
 		} catch (error: unknown) {
-			if (
-				error instanceof TransactionCanceledException ||
-				error instanceof ConditionalCheckFailedException
-			) {
-				// Transaction failed - could be duplicate star or missing user/repo
-				// Check if it's a duplicate by trying to get the star
-				const existing = await this.get(
-					star.username,
-					star.repoOwner,
-					star.repoName,
-				);
-
-				if (existing) {
-					throw new DuplicateEntityError(
-						"Star",
-						`STAR#${star.username}#${star.repoOwner}#${star.repoName}`,
-					);
-				}
-
-				// If star doesn't exist, user or repo must not exist
-				throw new ValidationError(
-					"star",
-					`User '${star.username}' or repository '${star.repoOwner}/${star.repoName}' does not exist`,
-				);
-			}
-			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError(error.path ?? "star", error.message);
-			}
-			throw error;
+			this.handleStarCreateError(error, star);
 		}
+	}
+
+	/**
+	 * Custom error handler for star creation with 3-transaction validation
+	 * Transaction 0: Put star (duplicate check)
+	 * Transaction 1: Check user exists
+	 * Transaction 2: Check repository exists
+	 */
+	private handleStarCreateError(error: unknown, star: StarEntity): never {
+		if (error instanceof TransactionCanceledException) {
+			const reasons = error.CancellationReasons || [];
+
+			// Star creation has 3 transactions
+			if (reasons.length < 3) {
+				throw new ValidationError(
+					"transaction",
+					`Transaction failed with unexpected cancellation reason count: ${reasons.length}`,
+				);
+			}
+
+			// First transaction is the star put (duplicate check)
+			if (reasons[0]?.Code === "ConditionalCheckFailed") {
+				throw new DuplicateEntityError("Star", star.getEntityKey());
+			}
+
+			// Second transaction is the user check
+			if (reasons[1]?.Code === "ConditionalCheckFailed") {
+				throw new EntityNotFoundError("UserEntity", `ACCOUNT#${star.username}`);
+			}
+
+			// Third transaction is the repository check
+			if (reasons[2]?.Code === "ConditionalCheckFailed") {
+				throw new EntityNotFoundError(
+					"RepositoryEntity",
+					`REPO#${star.repoOwner}#${star.repoName}`,
+				);
+			}
+
+			// Fallback for unknown transaction failure
+			throw new ValidationError(
+				"star",
+				`Failed to create star due to transaction conflict: ${reasons.map((r) => r.Code).join(", ")}`,
+			);
+		}
+		if (error instanceof DynamoDBToolboxError) {
+			throw new ValidationError(error.path ?? "star", error.message);
+		}
+		throw error;
 	}
 
 	/**

@@ -5,31 +5,28 @@ import type {
 	OrganizationService,
 	RepositoryService,
 	UserService,
+	PullRequestService,
 } from "../services";
 import type { IssueService } from "../services/IssueService";
-import type { PullRequestService } from "../services/PullRequestService";
-import type {
-	PullRequestCreateRequest,
-	PullRequestUpdateRequest,
-} from "./schema";
+import type { IssueCreateRequest, IssueUpdateRequest } from "./schema";
 import { EntityNotFoundError, ValidationError } from "../shared";
 
-describe("PullRequestRoutes", () => {
+describe("IssueRoutes", () => {
 	let app: Awaited<ReturnType<typeof Fastify>>;
 	const config = new Config();
-	const mockPullRequestService = jest.mocked<PullRequestService>({
-		createPullRequest: jest.fn(),
-		getPullRequest: jest.fn(),
-		listPullRequests: jest.fn(),
-		updatePullRequest: jest.fn(),
-		deletePullRequest: jest.fn(),
-	} as unknown as PullRequestService);
+	const mockIssueService = jest.mocked<IssueService>({
+		createIssue: jest.fn(),
+		getIssue: jest.fn(),
+		listIssues: jest.fn(),
+		updateIssue: jest.fn(),
+		deleteIssue: jest.fn(),
+	} as unknown as IssueService);
 	const mockServices = {
 		userService: {} as unknown as UserService,
 		organizationService: {} as unknown as OrganizationService,
 		repositoryService: {} as unknown as RepositoryService,
-		issueService: {} as unknown as IssueService,
-		pullRequestService: mockPullRequestService,
+		issueService: mockIssueService,
+		pullRequestService: {} as unknown as PullRequestService,
 	};
 
 	beforeEach(() => {
@@ -45,81 +42,79 @@ describe("PullRequestRoutes", () => {
 		await app.close();
 	});
 
-	describe("POST /v1/repositories/:owner/:repoName/pulls", () => {
-		it("should create a new pull request successfully", async () => {
+	describe("POST /v1/repositories/:owner/:repoName/issues", () => {
+		it("should create a new issue successfully", async () => {
 			// Arrange
-			const request: PullRequestCreateRequest = {
-				title: "Test PR",
+			const request: IssueCreateRequest = {
+				title: "Test Issue",
 				body: "Test body",
 				status: "open",
 				author: "testuser",
-				source_branch: "feature-branch",
-				target_branch: "main",
+				assignees: ["user1", "user2"],
+				labels: ["bug", "urgent"],
 			};
 
 			const response = {
 				owner: "testowner",
 				repo_name: "testrepo",
-				pr_number: 1,
-				title: "Test PR",
+				issue_number: 1,
+				title: "Test Issue",
 				body: "Test body",
 				status: "open",
 				author: "testuser",
-				source_branch: "feature-branch",
-				target_branch: "main",
+				assignees: ["user1", "user2"],
+				labels: ["bug", "urgent"],
 				created_at: "2024-01-01T00:00:00.000Z",
 				updated_at: "2024-01-01T00:00:00.000Z",
 			};
 
-			mockPullRequestService.createPullRequest.mockResolvedValue(response);
+			mockIssueService.createIssue.mockResolvedValue(response);
 
 			// Act
 			const result = await app.inject({
 				method: "POST",
-				url: "/v1/repositories/testowner/testrepo/pulls",
+				url: "/v1/repositories/testowner/testrepo/issues",
 				payload: request,
 			});
 
 			// Assert
 			expect(result.statusCode).toBe(201);
-			expect(mockPullRequestService.createPullRequest).toHaveBeenCalledWith(
+			expect(mockIssueService.createIssue).toHaveBeenCalledWith(
 				"testowner",
 				"testrepo",
 				request,
 			);
 			const body = JSON.parse(result.body);
 			expect(body).toEqual(response);
-			expect(body.pr_number).toBe(1);
+			expect(body.issue_number).toBe(1);
 		});
 
-		it("should create PR with default status when not provided", async () => {
+		it("should create issue with default status when not provided", async () => {
 			// Arrange
-			const request: PullRequestCreateRequest = {
-				title: "Test PR",
+			const request: IssueCreateRequest = {
+				title: "Test Issue",
 				author: "testuser",
-				source_branch: "feature",
-				target_branch: "main",
 			};
 
 			const response = {
 				owner: "testowner",
 				repo_name: "testrepo",
-				pr_number: 1,
-				title: "Test PR",
+				issue_number: 1,
+				title: "Test Issue",
 				status: "open",
 				author: "testuser",
-				source_branch: "feature",
-				target_branch: "main",
+				assignees: [],
+				labels: [],
 				created_at: "2024-01-01T00:00:00.000Z",
 				updated_at: "2024-01-01T00:00:00.000Z",
 			};
 
-			mockPullRequestService.createPullRequest.mockResolvedValue(response);
+			mockIssueService.createIssue.mockResolvedValue(response);
 
 			// Act
 			const result = await app.inject({
 				method: "POST",
-				url: "/v1/repositories/testowner/testrepo/pulls",
+				url: "/v1/repositories/testowner/testrepo/issues",
 				payload: request,
 			});
 
@@ -131,14 +126,12 @@ describe("PullRequestRoutes", () => {
 
 		it("should return 400 when repository does not exist", async () => {
 			// Arrange
-			const request: PullRequestCreateRequest = {
-				title: "Test PR",
+			const request: IssueCreateRequest = {
+				title: "Test Issue",
 				author: "testuser",
-				source_branch: "feature",
-				target_branch: "main",
 			};
 
-			mockPullRequestService.createPullRequest.mockRejectedValue(
+			mockIssueService.createIssue.mockRejectedValue(
 				new ValidationError(
 					"repository",
 					"Repository 'testowner/testrepo' does not exist",
@@ -148,7 +141,7 @@ describe("PullRequestRoutes", () => {
 			// Act
 			const result = await app.inject({
 				method: "POST",
-				url: "/v1/repositories/testowner/testrepo/pulls",
+				url: "/v1/repositories/testowner/testrepo/issues",
 				payload: request,
 			});
 
@@ -163,13 +156,13 @@ describe("PullRequestRoutes", () => {
 			// Arrange
 			const request = {
 				body: "Test body",
-				// missing title, author, and branches
+				// missing title and author
 			};
 
 			// Act
 			const result = await app.inject({
 				method: "POST",
-				url: "/v1/repositories/testowner/testrepo/pulls",
+				url: "/v1/repositories/testowner/testrepo/issues",
 				payload: request,
 			});
 
@@ -182,17 +175,15 @@ describe("PullRequestRoutes", () => {
 		it("should return 400 for invalid status value", async () => {
 			// Arrange
 			const request = {
-				title: "Test PR",
+				title: "Test Issue",
 				author: "testuser",
-				source_branch: "feature",
-				target_branch: "main",
 				status: "invalid",
 			};
 
 			// Act
 			const result = await app.inject({
 				method: "POST",
-				url: "/v1/repositories/testowner/testrepo/pulls",
+				url: "/v1/repositories/testowner/testrepo/issues",
 				payload: request,
 			});
 
@@ -201,34 +192,34 @@ describe("PullRequestRoutes", () => {
 		});
 	});
 
-	describe("GET /v1/repositories/:owner/:repoName/pulls/:prNumber", () => {
-		it("should retrieve an existing pull request", async () => {
+	describe("GET /v1/repositories/:owner/:repoName/issues/:issueNumber", () => {
+		it("should retrieve an existing issue", async () => {
 			// Arrange
 			const response = {
 				owner: "testowner",
 				repo_name: "testrepo",
-				pr_number: 1,
-				title: "Test PR",
+				issue_number: 1,
+				title: "Test Issue",
 				body: "Test body",
 				status: "open",
 				author: "testuser",
-				source_branch: "feature",
-				target_branch: "main",
+				assignees: ["user1"],
+				labels: ["bug"],
 				created_at: "2024-01-01T00:00:00.000Z",
 				updated_at: "2024-01-01T00:00:00.000Z",
 			};
 
-			mockPullRequestService.getPullRequest.mockResolvedValue(response);
+			mockIssueService.getIssue.mockResolvedValue(response);
 
 			// Act
 			const result = await app.inject({
 				method: "GET",
-				url: "/v1/repositories/testowner/testrepo/pulls/1",
+				url: "/v1/repositories/testowner/testrepo/issues/1",
 			});
 
 			// Assert
 			expect(result.statusCode).toBe(200);
-			expect(mockPullRequestService.getPullRequest).toHaveBeenCalledWith(
+			expect(mockIssueService.getIssue).toHaveBeenCalledWith(
 				"testowner",
 				"testrepo",
 				1,
@@ -237,16 +228,16 @@ describe("PullRequestRoutes", () => {
 			expect(body).toEqual(response);
 		});
 
-		it("should return 404 for non-existent PR", async () => {
+		it("should return 404 for non-existent issue", async () => {
 			// Arrange
-			mockPullRequestService.getPullRequest.mockRejectedValue(
-				new EntityNotFoundError("PullRequestEntity", "999"),
+			mockIssueService.getIssue.mockRejectedValue(
+				new EntityNotFoundError("IssueEntity", "999"),
 			);
 
 			// Act
 			const result = await app.inject({
 				method: "GET",
-				url: "/v1/repositories/testowner/testrepo/pulls/999",
+				url: "/v1/repositories/testowner/testrepo/issues/999",
 			});
 
 			// Assert
@@ -257,11 +248,11 @@ describe("PullRequestRoutes", () => {
 			expect(body.detail).toContain("not found");
 		});
 
-		it("should return 400 for invalid PR number", async () => {
+		it("should return 400 for invalid issue number", async () => {
 			// Act
 			const result = await app.inject({
 				method: "GET",
-				url: "/v1/repositories/testowner/testrepo/pulls/invalid",
+				url: "/v1/repositories/testowner/testrepo/issues/invalid",
 			});
 
 			// Assert
@@ -269,47 +260,47 @@ describe("PullRequestRoutes", () => {
 		});
 	});
 
-	describe("GET /v1/repositories/:owner/:repoName/pulls", () => {
-		it("should list all PRs when no status filter provided", async () => {
+	describe("GET /v1/repositories/:owner/:repoName/issues", () => {
+		it("should list all issues when no status filter provided", async () => {
 			// Arrange
 			const response = [
 				{
 					owner: "testowner",
 					repo_name: "testrepo",
-					pr_number: 1,
-					title: "PR 1",
+					issue_number: 1,
+					title: "Issue 1",
 					status: "open",
 					author: "user1",
-					source_branch: "feature1",
-					target_branch: "main",
+					assignees: [],
+					labels: [],
 					created_at: "2024-01-01T00:00:00.000Z",
 					updated_at: "2024-01-01T00:00:00.000Z",
 				},
 				{
 					owner: "testowner",
 					repo_name: "testrepo",
-					pr_number: 2,
-					title: "PR 2",
+					issue_number: 2,
+					title: "Issue 2",
 					status: "closed",
 					author: "user2",
-					source_branch: "feature2",
-					target_branch: "main",
+					assignees: [],
+					labels: [],
 					created_at: "2024-01-01T00:00:00.000Z",
 					updated_at: "2024-01-01T00:00:00.000Z",
 				},
 			];
 
-			mockPullRequestService.listPullRequests.mockResolvedValue(response);
+			mockIssueService.listIssues.mockResolvedValue(response);
 
 			// Act
 			const result = await app.inject({
 				method: "GET",
-				url: "/v1/repositories/testowner/testrepo/pulls",
+				url: "/v1/repositories/testowner/testrepo/issues",
 			});
 
 			// Assert
 			expect(result.statusCode).toBe(200);
-			expect(mockPullRequestService.listPullRequests).toHaveBeenCalledWith(
+			expect(mockIssueService.listIssues).toHaveBeenCalledWith(
 				"testowner",
 				"testrepo",
 				undefined,
@@ -318,34 +309,34 @@ describe("PullRequestRoutes", () => {
 			expect(body).toHaveLength(2);
 		});
 
-		it("should list only open PRs when status filter is 'open'", async () => {
+		it("should list only open issues when status filter is 'open'", async () => {
 			// Arrange
 			const response = [
 				{
 					owner: "testowner",
 					repo_name: "testrepo",
-					pr_number: 1,
-					title: "PR 1",
+					issue_number: 1,
+					title: "Issue 1",
 					status: "open",
 					author: "user1",
-					source_branch: "feature1",
-					target_branch: "main",
+					assignees: [],
+					labels: [],
 					created_at: "2024-01-01T00:00:00.000Z",
 					updated_at: "2024-01-01T00:00:00.000Z",
 				},
 			];
 
-			mockPullRequestService.listPullRequests.mockResolvedValue(response);
+			mockIssueService.listIssues.mockResolvedValue(response);
 
 			// Act
 			const result = await app.inject({
 				method: "GET",
-				url: "/v1/repositories/testowner/testrepo/pulls?status=open",
+				url: "/v1/repositories/testowner/testrepo/issues?status=open",
 			});
 
 			// Assert
 			expect(result.statusCode).toBe(200);
-			expect(mockPullRequestService.listPullRequests).toHaveBeenCalledWith(
+			expect(mockIssueService.listIssues).toHaveBeenCalledWith(
 				"testowner",
 				"testrepo",
 				"open",
@@ -355,52 +346,51 @@ describe("PullRequestRoutes", () => {
 			expect(body[0].status).toBe("open");
 		});
 
-		it("should list only merged PRs when status filter is 'merged'", async () => {
+		it("should list only closed issues when status filter is 'closed'", async () => {
 			// Arrange
 			const response = [
 				{
 					owner: "testowner",
 					repo_name: "testrepo",
-					pr_number: 3,
-					title: "PR 3",
-					status: "merged",
-					author: "user3",
-					source_branch: "feature3",
-					target_branch: "main",
-					merge_commit_sha: "abc123",
+					issue_number: 2,
+					title: "Issue 2",
+					status: "closed",
+					author: "user2",
+					assignees: [],
+					labels: [],
 					created_at: "2024-01-01T00:00:00.000Z",
 					updated_at: "2024-01-01T00:00:00.000Z",
 				},
 			];
 
-			mockPullRequestService.listPullRequests.mockResolvedValue(response);
+			mockIssueService.listIssues.mockResolvedValue(response);
 
 			// Act
 			const result = await app.inject({
 				method: "GET",
-				url: "/v1/repositories/testowner/testrepo/pulls?status=merged",
+				url: "/v1/repositories/testowner/testrepo/issues?status=closed",
 			});
 
 			// Assert
 			expect(result.statusCode).toBe(200);
-			expect(mockPullRequestService.listPullRequests).toHaveBeenCalledWith(
+			expect(mockIssueService.listIssues).toHaveBeenCalledWith(
 				"testowner",
 				"testrepo",
-				"merged",
+				"closed",
 			);
 			const body = JSON.parse(result.body);
 			expect(body).toHaveLength(1);
-			expect(body[0].status).toBe("merged");
+			expect(body[0].status).toBe("closed");
 		});
 
-		it("should return empty array when no PRs exist", async () => {
+		it("should return empty array when no issues exist", async () => {
 			// Arrange
-			mockPullRequestService.listPullRequests.mockResolvedValue([]);
+			mockIssueService.listIssues.mockResolvedValue([]);
 
 			// Act
 			const result = await app.inject({
 				method: "GET",
-				url: "/v1/repositories/testowner/testrepo/pulls",
+				url: "/v1/repositories/testowner/testrepo/issues",
 			});
 
 			// Assert
@@ -413,7 +403,7 @@ describe("PullRequestRoutes", () => {
 			// Act
 			const result = await app.inject({
 				method: "GET",
-				url: "/v1/repositories/testowner/testrepo/pulls?status=invalid",
+				url: "/v1/repositories/testowner/testrepo/issues?status=invalid",
 			});
 
 			// Assert
@@ -421,41 +411,43 @@ describe("PullRequestRoutes", () => {
 		});
 	});
 
-	describe("PATCH /v1/repositories/:owner/:repoName/pulls/:prNumber", () => {
-		it("should update an existing PR successfully", async () => {
+	describe("PUT /v1/repositories/:owner/:repoName/issues/:issueNumber", () => {
+		it("should update an existing issue successfully", async () => {
 			// Arrange
-			const updateRequest: PullRequestUpdateRequest = {
+			const updateRequest: IssueUpdateRequest = {
 				title: "Updated Title",
 				body: "Updated body",
 				status: "closed",
+				assignees: ["newuser"],
+				labels: ["resolved"],
 			};
 
 			const response = {
 				owner: "testowner",
 				repo_name: "testrepo",
-				pr_number: 1,
+				issue_number: 1,
 				title: "Updated Title",
 				body: "Updated body",
 				status: "closed",
 				author: "testuser",
-				source_branch: "feature",
-				target_branch: "main",
+				assignees: ["newuser"],
+				labels: ["resolved"],
 				created_at: "2024-01-01T00:00:00.000Z",
 				updated_at: "2024-01-01T01:00:00.000Z",
 			};
 
-			mockPullRequestService.updatePullRequest.mockResolvedValue(response);
+			mockIssueService.updateIssue.mockResolvedValue(response);
 
 			// Act
 			const result = await app.inject({
-				method: "PATCH",
-				url: "/v1/repositories/testowner/testrepo/pulls/1",
+				method: "PUT",
+				url: "/v1/repositories/testowner/testrepo/issues/1",
 				payload: updateRequest,
 			});
 
 			// Assert
 			expect(result.statusCode).toBe(200);
-			expect(mockPullRequestService.updatePullRequest).toHaveBeenCalledWith(
+			expect(mockIssueService.updateIssue).toHaveBeenCalledWith(
 				"testowner",
 				"testrepo",
 				1,
@@ -465,20 +457,20 @@ describe("PullRequestRoutes", () => {
 			expect(body).toEqual(response);
 		});
 
-		it("should return 404 when updating non-existent PR", async () => {
+		it("should return 404 when updating non-existent issue", async () => {
 			// Arrange
-			const updateRequest: PullRequestUpdateRequest = {
+			const updateRequest: IssueUpdateRequest = {
 				title: "Updated Title",
 			};
 
-			mockPullRequestService.updatePullRequest.mockRejectedValue(
-				new EntityNotFoundError("PullRequestEntity", "999"),
+			mockIssueService.updateIssue.mockRejectedValue(
+				new EntityNotFoundError("IssueEntity", "999"),
 			);
 
 			// Act
 			const result = await app.inject({
-				method: "PATCH",
-				url: "/v1/repositories/testowner/testrepo/pulls/999",
+				method: "PUT",
+				url: "/v1/repositories/testowner/testrepo/issues/999",
 				payload: updateRequest,
 			});
 
@@ -491,40 +483,37 @@ describe("PullRequestRoutes", () => {
 
 		it("should allow partial updates", async () => {
 			// Arrange
-			const updateRequest: PullRequestUpdateRequest = {
-				status: "merged",
-				merge_commit_sha: "abc123",
+			const updateRequest: IssueUpdateRequest = {
+				status: "closed",
 			};
 
 			const response = {
 				owner: "testowner",
 				repo_name: "testrepo",
-				pr_number: 1,
+				issue_number: 1,
 				title: "Original Title",
 				body: "Original body",
-				status: "merged",
+				status: "closed",
 				author: "testuser",
-				source_branch: "feature",
-				target_branch: "main",
-				merge_commit_sha: "abc123",
+				assignees: ["user1"],
+				labels: ["bug"],
 				created_at: "2024-01-01T00:00:00.000Z",
 				updated_at: "2024-01-01T01:00:00.000Z",
 			};
 
-			mockPullRequestService.updatePullRequest.mockResolvedValue(response);
+			mockIssueService.updateIssue.mockResolvedValue(response);
 
 			// Act
 			const result = await app.inject({
-				method: "PATCH",
-				url: "/v1/repositories/testowner/testrepo/pulls/1",
+				method: "PUT",
+				url: "/v1/repositories/testowner/testrepo/issues/1",
 				payload: updateRequest,
 			});
 
 			// Assert
 			expect(result.statusCode).toBe(200);
 			const body = JSON.parse(result.body);
-			expect(body.status).toBe("merged");
-			expect(body.merge_commit_sha).toBe("abc123");
+			expect(body.status).toBe("closed");
 		});
 
 		it("should return 400 for validation errors", async () => {
@@ -533,14 +522,14 @@ describe("PullRequestRoutes", () => {
 				title: "", // Invalid: empty title
 			};
 
-			mockPullRequestService.updatePullRequest.mockRejectedValue(
+			mockIssueService.updateIssue.mockRejectedValue(
 				new ValidationError("title", "Title is required"),
 			);
 
 			// Act
 			const result = await app.inject({
-				method: "PATCH",
-				url: "/v1/repositories/testowner/testrepo/pulls/1",
+				method: "PUT",
+				url: "/v1/repositories/testowner/testrepo/issues/1",
 				payload: updateRequest,
 			});
 
@@ -555,23 +544,23 @@ describe("PullRequestRoutes", () => {
 			const response = {
 				owner: "testowner",
 				repo_name: "testrepo",
-				pr_number: 1,
+				issue_number: 1,
 				title: "Original Title",
 				body: "Original body",
 				status: "open",
 				author: "testuser",
-				source_branch: "feature",
-				target_branch: "main",
+				assignees: ["user1"],
+				labels: ["bug"],
 				created_at: "2024-01-01T00:00:00.000Z",
 				updated_at: "2024-01-01T00:00:00.000Z",
 			};
 
-			mockPullRequestService.updatePullRequest.mockResolvedValue(response);
+			mockIssueService.updateIssue.mockResolvedValue(response);
 
 			// Act
 			const result = await app.inject({
-				method: "PATCH",
-				url: "/v1/repositories/testowner/testrepo/pulls/1",
+				method: "PUT",
+				url: "/v1/repositories/testowner/testrepo/issues/1",
 				payload: {},
 			});
 
@@ -582,20 +571,20 @@ describe("PullRequestRoutes", () => {
 		});
 	});
 
-	describe("DELETE /v1/repositories/:owner/:repoName/pulls/:prNumber", () => {
-		it("should delete an existing PR successfully", async () => {
+	describe("DELETE /v1/repositories/:owner/:repoName/issues/:issueNumber", () => {
+		it("should delete an existing issue successfully", async () => {
 			// Arrange
-			mockPullRequestService.deletePullRequest.mockResolvedValue(undefined);
+			mockIssueService.deleteIssue.mockResolvedValue(undefined);
 
 			// Act
 			const result = await app.inject({
 				method: "DELETE",
-				url: "/v1/repositories/testowner/testrepo/pulls/1",
+				url: "/v1/repositories/testowner/testrepo/issues/1",
 			});
 
 			// Assert
 			expect(result.statusCode).toBe(204);
-			expect(mockPullRequestService.deletePullRequest).toHaveBeenCalledWith(
+			expect(mockIssueService.deleteIssue).toHaveBeenCalledWith(
 				"testowner",
 				"testrepo",
 				1,
@@ -603,16 +592,16 @@ describe("PullRequestRoutes", () => {
 			expect(result.body).toBe("");
 		});
 
-		it("should return 404 when deleting non-existent PR", async () => {
+		it("should return 404 when deleting non-existent issue", async () => {
 			// Arrange
-			mockPullRequestService.deletePullRequest.mockRejectedValue(
-				new EntityNotFoundError("PullRequestEntity", "999"),
+			mockIssueService.deleteIssue.mockRejectedValue(
+				new EntityNotFoundError("IssueEntity", "999"),
 			);
 
 			// Act
 			const result = await app.inject({
 				method: "DELETE",
-				url: "/v1/repositories/testowner/testrepo/pulls/999",
+				url: "/v1/repositories/testowner/testrepo/issues/999",
 			});
 
 			// Assert
@@ -626,14 +615,14 @@ describe("PullRequestRoutes", () => {
 	describe("Error Handling", () => {
 		it("should handle unexpected errors with 500", async () => {
 			// Arrange
-			mockPullRequestService.getPullRequest.mockRejectedValue(
+			mockIssueService.getIssue.mockRejectedValue(
 				new Error("Unexpected database error"),
 			);
 
 			// Act
 			const result = await app.inject({
 				method: "GET",
-				url: "/v1/repositories/testowner/testrepo/pulls/1",
+				url: "/v1/repositories/testowner/testrepo/issues/1",
 			});
 
 			// Assert
@@ -642,7 +631,7 @@ describe("PullRequestRoutes", () => {
 
 		it("should include error details in problem detail format", async () => {
 			// Arrange
-			mockPullRequestService.createPullRequest.mockRejectedValue(
+			mockIssueService.createIssue.mockRejectedValue(
 				new ValidationError(
 					"repository",
 					"Repository 'testowner/testrepo' does not exist",
@@ -652,12 +641,10 @@ describe("PullRequestRoutes", () => {
 			// Act
 			const result = await app.inject({
 				method: "POST",
-				url: "/v1/repositories/testowner/testrepo/pulls",
+				url: "/v1/repositories/testowner/testrepo/issues",
 				payload: {
-					title: "Test PR",
+					title: "Test Issue",
 					author: "testuser",
-					source_branch: "feature",
-					target_branch: "main",
 				},
 			});
 

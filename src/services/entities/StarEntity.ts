@@ -154,6 +154,14 @@ class StarEntity {
 			);
 		}
 	}
+
+	/**
+	 * Get the entity key for error messages and logging
+	 * Returns a string representation that uniquely identifies this entity
+	 */
+	public getEntityKey(): string {
+		return `STAR#${this.username}#${this.repoOwner}#${this.repoName}`;
+	}
 }
 
 export { StarEntity };

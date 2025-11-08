@@ -18,7 +18,7 @@ import { IssueRepository } from "./IssueRepository";
 import { PullRequestRepository } from "./PullRequestRepository";
 import { IssueCommentRepository } from "./IssueCommentRepository";
 import { PRCommentRepository } from "./PRCommentRepository";
-import { ValidationError } from "../shared";
+import { DuplicateEntityError, EntityNotFoundError } from "../shared";
 
 describe("ReactionRepository", () => {
 	let client: DynamoDBClient;
@@ -421,7 +421,7 @@ describe("ReactionRepository", () => {
 			});
 
 			await expect(reactionRepo.create(reaction2)).rejects.toThrow(
-				ValidationError,
+				DuplicateEntityError,
 			);
 
 			// Cleanup
@@ -567,7 +567,7 @@ describe("ReactionRepository", () => {
 			});
 
 			await expect(reactionRepo.create(reaction)).rejects.toThrow(
-				ValidationError,
+				EntityNotFoundError,
 			);
 		});
 
@@ -582,7 +582,7 @@ describe("ReactionRepository", () => {
 			});
 
 			await expect(reactionRepo.create(reaction)).rejects.toThrow(
-				ValidationError,
+				EntityNotFoundError,
 			);
 		});
 
@@ -597,7 +597,7 @@ describe("ReactionRepository", () => {
 			});
 
 			await expect(reactionRepo.create(reaction)).rejects.toThrow(
-				ValidationError,
+				EntityNotFoundError,
 			);
 		});
 
@@ -612,7 +612,7 @@ describe("ReactionRepository", () => {
 			});
 
 			await expect(reactionRepo.create(reaction)).rejects.toThrow(
-				ValidationError,
+				EntityNotFoundError,
 			);
 		});
 	});

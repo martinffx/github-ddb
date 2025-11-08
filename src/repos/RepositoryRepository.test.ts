@@ -6,7 +6,7 @@ import {
 } from "../services/entities/fixtures";
 import { OrganizationEntity } from "../services/entities/OrganizationEntity";
 import { RepositoryEntity } from "../services/entities/RepositoryEntity";
-import { DuplicateEntityError, ValidationError } from "../shared";
+import { DuplicateEntityError, EntityNotFoundError } from "../shared";
 import { OrganizationRepository } from "./OrganizationRepository";
 import { RepoRepository } from "./RepositoryRepository";
 import { UserRepository } from "./UserRepository";
@@ -72,14 +72,14 @@ describe("RepositoryRepository", () => {
 		await orgRepo.deleteOrg(testOrg.orgName);
 	});
 
-	it("should throw ValidationError when owner does not exist", async () => {
+	it("should throw EntityNotFoundError when owner does not exist", async () => {
 		const repoEntity = createRepositoryEntity({
 			owner: "nonexistent",
 			repo_name: "test-repo",
 		});
 
 		await expect(repositoryRepo.createRepo(repoEntity)).rejects.toThrow(
-			ValidationError,
+			EntityNotFoundError,
 		);
 	});
 
@@ -231,5 +231,17 @@ describe("RepositoryRepository", () => {
 			repo_name: "repo-third",
 		});
 		await userRepo.deleteUser(testUser.username);
+	});
+
+	it("should throw EntityNotFoundError when updating non-existent repository", async () => {
+		const repo = createRepositoryEntity({
+			owner: "nonexistent",
+			repo_name: "nonexistent",
+			description: "Test update",
+		});
+
+		await expect(repositoryRepo.updateRepo(repo)).rejects.toThrow(
+			EntityNotFoundError,
+		);
 	});
 });

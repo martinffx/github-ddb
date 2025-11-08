@@ -205,6 +205,22 @@ class PRCommentEntity {
 			modified: DateTime.utc(),
 		});
 	}
+
+	/**
+	 * Get the entity key for error messages and logging
+	 * Returns a string representation that uniquely identifies this entity
+	 */
+	public getEntityKey(): string {
+		return `PRCOMMENT#${this.owner}#${this.repoName}#${this.prNumber}#${this.commentId}`;
+	}
+
+	/**
+	 * Get the parent entity key (PullRequest) for error messages
+	 * Returns a string representation that identifies the parent pull request
+	 */
+	public getParentEntityKey(): string {
+		return `PR#${this.owner}#${this.repoName}#${this.prNumber}`;
+	}
 }
 
 export {

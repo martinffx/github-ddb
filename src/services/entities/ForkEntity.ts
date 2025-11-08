@@ -197,6 +197,14 @@ class ForkEntity {
 			);
 		}
 	}
+
+	/**
+	 * Get the entity key for error messages and logging
+	 * Returns a string representation that uniquely identifies this entity
+	 */
+	public getEntityKey(): string {
+		return `FORK#${this.originalOwner}#${this.originalRepo}#${this.forkOwner}`;
+	}
 }
 
 export { ForkEntity };

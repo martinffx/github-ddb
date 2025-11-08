@@ -193,6 +193,22 @@ class IssueCommentEntity {
 			throw new ValidationError("author", "Author is required");
 		}
 	}
+
+	/**
+	 * Get the entity key for error messages and logging
+	 * Returns a string representation that uniquely identifies this entity
+	 */
+	public getEntityKey(): string {
+		return `ISSUECOMMENT#${this.owner}#${this.repoName}#${this.issueNumber}#${this.commentId}`;
+	}
+
+	/**
+	 * Get the parent entity key (Issue) for error messages
+	 * Returns a string representation that identifies the parent issue
+	 */
+	public getParentEntityKey(): string {
+		return `ISSUE#${this.owner}#${this.repoName}#${this.issueNumber}`;
+	}
 }
 
 export { IssueCommentEntity };

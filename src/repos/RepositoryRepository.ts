@@ -1,11 +1,6 @@
 import {
-	ConditionalCheckFailedException,
-	TransactionCanceledException,
-} from "@aws-sdk/client-dynamodb";
-import {
 	ConditionCheck,
 	DeleteItemCommand,
-	DynamoDBToolboxError,
 	GetItemCommand,
 	PutItemCommand,
 	QueryCommand,
@@ -16,11 +11,6 @@ import type { PaginatedResponse } from "../routes/schema";
 import { RepositoryEntity } from "../services";
 import type { RepositoryId } from "../services/entities/RepositoryEntity";
 import {
-	DuplicateEntityError,
-	EntityNotFoundError,
-	ValidationError,
-} from "../shared";
-import {
 	decodePageToken,
 	encodePageToken,
 	type GithubTable,
@@ -29,6 +19,7 @@ import {
 	type RepoRecord,
 	type UserRecord,
 } from "./schema";
+import { handleTransactionError, handleUpdateError } from "./utils";
 
 type ListOptions = {
 	limit?: number;
@@ -81,34 +72,13 @@ export class RepoRepository {
 
 			return result;
 		} catch (error: unknown) {
-			if (
-				error instanceof TransactionCanceledException ||
-				error instanceof ConditionalCheckFailedException
-			) {
-				// Transaction failed - could be either duplicate repo or missing owner
-				// Check if it's a duplicate by trying to get the repo
-				const existing = await this.getRepo({
-					owner: repo.owner,
-					repo_name: repo.repoName,
-				});
-
-				if (existing) {
-					throw new DuplicateEntityError(
-						"RepositoryEntity",
-						`REPO#${repo.owner}#${repo.repoName}`,
-					);
-				}
-
-				// If repo doesn't exist, owner must not exist
-				throw new ValidationError(
-					"owner",
-					`Owner '${repo.owner}' does not exist`,
-				);
-			}
-			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError(error.path ?? "repository", error.message);
-			}
-			throw error;
+			handleTransactionError(error, {
+				entityType: "RepositoryEntity",
+				entityKey: repo.getEntityKey(),
+				parentEntityType: "UserEntity",
+				parentEntityKey: repo.getParentEntityKey(),
+				operationName: "repository",
+			});
 		}
 	}
 
@@ -134,16 +104,7 @@ export class RepoRepository {
 
 			return RepositoryEntity.fromRecord(result.ToolboxItem);
 		} catch (error: unknown) {
-			if (error instanceof ConditionalCheckFailedException) {
-				throw new EntityNotFoundError(
-					"RepositoryEntity",
-					`REPO#${repo.owner}#${repo.repoName}`,
-				);
-			}
-			if (error instanceof DynamoDBToolboxError) {
-				throw new ValidationError(error.path ?? "repository", error.message);
-			}
-			throw error;
+			handleUpdateError(error, "RepositoryEntity", repo.getEntityKey());
 		}
 	}
 
