@@ -43,7 +43,7 @@ async function createApp({ config, services }: AppOpts) {
 			info: {
 				title: "GitHub DynamoDB API",
 				description:
-					"REST API for managing GitHub-like entities (Users, Organizations, Repositories) backed by DynamoDB",
+					"REST API for managing GitHub-like entities (Users, Organizations, Repositories, Issues, Pull Requests) backed by DynamoDB",
 				version: "1.0.0",
 			},
 			tags: [
@@ -53,6 +53,12 @@ async function createApp({ config, services }: AppOpts) {
 					description: "Organization management endpoints",
 				},
 				{ name: "Repository", description: "Repository management endpoints" },
+				{ name: "Issue", description: "Issue management endpoints" },
+				{
+					name: "Pull Request",
+					description: "Pull request management endpoints",
+				},
+				{ name: "Fork", description: "Fork management endpoints" },
 			],
 		},
 	});
@@ -72,6 +78,8 @@ async function createApp({ config, services }: AppOpts) {
 	app.register(UserRoutes, { prefix: "/v1/users" });
 	app.register(OrganizationRoutes, { prefix: "/v1/organizations" });
 	app.register(RepositoryRoutes, { prefix: "/v1/repositories" });
+	// All child routes (Comments, Reactions, Stars, Forks, Pull Requests, Issues) are nested within RepositoryRoutes
+	// RepositoryRoutes handles: Stars, Forks, Pull Requests (with Comments and Reactions), and Issues (with Comments and Reactions)
 
 	// Health check endpoint
 	app.get("/health", async () => {
@@ -86,13 +94,20 @@ async function createApp({ config, services }: AppOpts) {
 }
 
 /**
+ * Build the app for testing
+ */
+export async function buildApp(config: Config) {
+	const services = await buildServices(config);
+	return createApp({ services, config });
+}
+
+/**
  * Start the server
  */
 async function start() {
 	try {
 		const config = new Config();
-		const services = await buildServices(config);
-		const app = await createApp({ services, config });
+		const app = await buildApp(config);
 		const serverConfig = config.server;
 
 		// Start listening

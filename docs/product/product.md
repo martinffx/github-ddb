@@ -145,7 +145,7 @@ erDiagram
 | Entity | Partition Key (PK) | Sort Key (SK) | Entity Type |
 |--------|-------------------|---------------|-------------|
 | **Repository** | `REPO#<Owner>#<RepoName>` | `REPO#<Owner>#<RepoName>` | Repo |
-| **Issue** | `REPO#<Owner>#<RepoName>` | `ISSUE#<ZeroPaddedIssueNumber>` | Issue |
+| **Issue** | `ISSUE#<Owner>#<RepoName>#<ZeroPaddedIssueNumber>` | `ISSUE#<Owner>#<RepoName>#<ZeroPaddedIssueNumber>` | Issue |
 | **Pull Request** | `PR#<Owner>#<RepoName>#<ZeroPaddedPRNumber>` | `PR#<Owner>#<RepoName>#<ZeroPaddedPRNumber>` | PullRequest |
 | **Issue Comment** | `ISSUECOMMENT#<Owner>#<RepoName>#<IssueNumber>` | `ISSUECOMMENT#<CommentId>` | IssueComment |
 | **PR Comment** | `PRCOMMENT#<Owner>#<RepoName>#<PRNumber>` | `PRCOMMENT#<CommentId>` | PRComment |
@@ -162,6 +162,7 @@ erDiagram
 | Entity | GSI1PK | GSI1SK | Purpose |
 |--------|--------|--------|---------|
 | **Repository** | `REPO#<Owner>#<RepoName>` | `REPO#<Owner>#<RepoName>` | Query by repo |
+| **Issue** | `ISSUE#<Owner>#<RepoName>` | `ISSUE#<ZeroPaddedIssueNumber>` | List issues by repo |
 | **Pull Request** | `PR#<Owner>#<RepoName>` | `PR#<ZeroPaddedPRNumber>` | List PRs by repo |
 | **User** | `ACCOUNT#<Username>` | `ACCOUNT#<Username>` | Account queries |
 | **Organization** | `ACCOUNT#<OrgName>` | `ACCOUNT#<OrgName>` | Account queries |
@@ -188,8 +189,10 @@ erDiagram
 | Entity | GSI4PK | GSI4SK | Purpose |
 |--------|--------|--------|---------|
 | **Repository** | `REPO#<Owner>#<RepoName>` | `#REPO#<Owner>#<RepoName>` | Repo metadata |
-| **Open Issue** | `REPO#<Owner>#<RepoName>` | `ISSUE#OPEN#<ZeroPaddedIssueNumberDiff>` | Open issues by repo |
-| **Closed Issue** | `REPO#<Owner>#<RepoName>` | `#ISSUE#CLOSED#<ZeroPaddedIssueNumber>` | Closed issues by repo |
+| **Open Issue** | `ISSUE#<Owner>#<RepoName>` | `ISSUE#OPEN#<ZeroPaddedIssueNumberDiff>` | Open issues by repo (sorted newest first) |
+| **Closed Issue** | `ISSUE#<Owner>#<RepoName>` | `#ISSUE#CLOSED#<ZeroPaddedIssueNumber>` | Closed issues by repo (sorted oldest first) |
+
+**Note:** Issue and PR numbers support up to 99,999,999 (8 digits). Open issues use reverse numbering (`99999999 - issue_number`) for newest-first sorting.
 
 ## Supported Access Patterns
 

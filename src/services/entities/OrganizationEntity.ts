@@ -88,6 +88,14 @@ class OrganizationEntity {
 			modified: DateTime.utc(), // Update to now
 		});
 	}
+
+	/**
+	 * Get the entity key for error messages and logging
+	 * Returns a string representation that uniquely identifies this entity
+	 */
+	public getEntityKey(): string {
+		return this.orgName;
+	}
 }
 
 export { OrganizationEntity };

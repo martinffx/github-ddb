@@ -1,12 +1,12 @@
 import {
+	cleanupDDBClient,
 	createGithubSchema,
 	createRepositoryEntity,
 	createUserEntity,
-	cleanupDDBClient,
 } from "../services/entities/fixtures";
 import { OrganizationEntity } from "../services/entities/OrganizationEntity";
 import { RepositoryEntity } from "../services/entities/RepositoryEntity";
-import { DuplicateEntityError, ValidationError } from "../shared";
+import { DuplicateEntityError, EntityNotFoundError } from "../shared";
 import { OrganizationRepository } from "./OrganizationRepository";
 import { RepoRepository } from "./RepositoryRepository";
 import { UserRepository } from "./UserRepository";
@@ -15,6 +15,8 @@ describe("RepositoryRepository", () => {
 	let repositoryRepo: RepoRepository;
 	let userRepo: UserRepository;
 	let orgRepo: OrganizationRepository;
+	// Use timestamp to ensure unique IDs across test runs
+	const testRunId = Date.now();
 
 	beforeAll(async () => {
 		const { table, repository, user, organization } =
@@ -70,14 +72,14 @@ describe("RepositoryRepository", () => {
 		await orgRepo.deleteOrg(testOrg.orgName);
 	});
 
-	it("should throw ValidationError when owner does not exist", async () => {
+	it("should throw EntityNotFoundError when owner does not exist", async () => {
 		const repoEntity = createRepositoryEntity({
 			owner: "nonexistent",
 			repo_name: "test-repo",
 		});
 
 		await expect(repositoryRepo.createRepo(repoEntity)).rejects.toThrow(
-			ValidationError,
+			EntityNotFoundError,
 		);
 	});
 
@@ -166,12 +168,13 @@ describe("RepositoryRepository", () => {
 
 	it("should list repositories by owner sorted by creation time (newest first)", async () => {
 		// Create user first
-		const testUser = createUserEntity({ username: "repouser5" });
+		const username = `repouser5-${testRunId}`;
+		const testUser = createUserEntity({ username });
 		await userRepo.createUser(testUser);
 
 		// Create 3 repositories with small delays to ensure different timestamps
 		const repo1 = createRepositoryEntity({
-			owner: "repouser5",
+			owner: username,
 			repo_name: "repo-first",
 		});
 		await repositoryRepo.createRepo(repo1);
@@ -180,7 +183,7 @@ describe("RepositoryRepository", () => {
 		await new Promise((resolve) => setTimeout(resolve, 50));
 
 		const repo2 = createRepositoryEntity({
-			owner: "repouser5",
+			owner: username,
 			repo_name: "repo-second",
 		});
 		await repositoryRepo.createRepo(repo2);
@@ -189,13 +192,13 @@ describe("RepositoryRepository", () => {
 		await new Promise((resolve) => setTimeout(resolve, 50));
 
 		const repo3 = createRepositoryEntity({
-			owner: "repouser5",
+			owner: username,
 			repo_name: "repo-third",
 		});
 		await repositoryRepo.createRepo(repo3);
 
 		// List repositories by owner
-		const result = await repositoryRepo.listByOwner("repouser5");
+		const result = await repositoryRepo.listByOwner(username);
 
 		// Verify we got all 3 repositories
 		expect(result.items).toHaveLength(3);
@@ -215,9 +218,30 @@ describe("RepositoryRepository", () => {
 		);
 
 		// Clean up
-		await repositoryRepo.deleteRepo({ owner: "repouser5", repo_name: "repo-first" });
-		await repositoryRepo.deleteRepo({ owner: "repouser5", repo_name: "repo-second" });
-		await repositoryRepo.deleteRepo({ owner: "repouser5", repo_name: "repo-third" });
+		await repositoryRepo.deleteRepo({
+			owner: username,
+			repo_name: "repo-first",
+		});
+		await repositoryRepo.deleteRepo({
+			owner: username,
+			repo_name: "repo-second",
+		});
+		await repositoryRepo.deleteRepo({
+			owner: username,
+			repo_name: "repo-third",
+		});
 		await userRepo.deleteUser(testUser.username);
+	});
+
+	it("should throw EntityNotFoundError when updating non-existent repository", async () => {
+		const repo = createRepositoryEntity({
+			owner: "nonexistent",
+			repo_name: "nonexistent",
+			description: "Test update",
+		});
+
+		await expect(repositoryRepo.updateRepo(repo)).rejects.toThrow(
+			EntityNotFoundError,
+		);
 	});
 });

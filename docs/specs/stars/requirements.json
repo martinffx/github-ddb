@@ -1,0 +1,35 @@
+{
+	"raw_user_story": "As a GitHub user, I want to star repositories I'm interested in, so that I can bookmark repos for later reference and show appreciation for projects I find valuable.",
+	"raw_criteria": [
+		"User can star a repository",
+		"User can unstar a repository",
+		"List repositories a user has starred",
+		"List users who starred a repository",
+		"Check if user has starred a repository",
+		"Prevent duplicate stars"
+	],
+	"raw_rules": [
+		"A user can star a repository only once",
+		"Stars must reference valid users and repositories",
+		"Timestamps must be recorded when stars are created",
+		"Unstarring is idempotent - no error if already unstarred",
+		"Stars are bidirectional queryable (user→repos, repo→users)"
+	],
+	"raw_scope": {
+		"included": [
+			"Star entity with DynamoDB-Toolbox schema",
+			"StarEntity class with transformation methods",
+			"StarRepository with bidirectional queries",
+			"Pagination support for list operations",
+			"Idempotent star/unstar operations",
+			"Referential integrity validation"
+		],
+		"excluded": [
+			"Star count aggregation (can be computed from queries)",
+			"Star activity feed",
+			"Star notifications",
+			"API rate limiting for starring",
+			"Bulk star operations"
+		]
+	}
+}

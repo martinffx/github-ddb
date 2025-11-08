@@ -3,13 +3,22 @@ import type { FastifyInstance, FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
 import type { Config } from "../config";
 import {
+	ForkRepository,
+	IssueCommentRepository,
+	IssueRepository,
 	OrganizationRepository,
+	PRCommentRepository,
+	PullRequestRepository,
+	ReactionRepository,
 	RepoRepository,
+	StarRepository,
 	UserRepository,
 } from "../repos";
 import { initializeSchema } from "../repos/schema";
 import {
+	IssueService,
 	OrganizationService,
+	PullRequestService,
 	RepositoryService,
 	UserService,
 } from "../services";
@@ -19,6 +28,8 @@ export interface Services {
 	userService: UserService;
 	organizationService: OrganizationService;
 	repositoryService: RepositoryService;
+	issueService: IssueService;
+	pullRequestService: PullRequestService;
 }
 
 // Extend Fastify types to include our services decorator
@@ -59,16 +70,73 @@ export const buildServices = async (config: Config): Promise<Services> => {
 		schema.user,
 		schema.organization,
 	);
+	const issueRepository = new IssueRepository(
+		schema.table,
+		schema.issue,
+		schema.counter,
+		schema.repository,
+	);
+	const pullRequestRepository = new PullRequestRepository(
+		schema.table,
+		schema.pullRequest,
+		schema.counter,
+		schema.repository,
+	);
+	const issueCommentRepository = new IssueCommentRepository(
+		schema.table,
+		schema.issueComment,
+		schema.issue,
+	);
+	const prCommentRepository = new PRCommentRepository(
+		schema.table,
+		schema.prComment,
+		schema.pullRequest,
+	);
+	const reactionRepository = new ReactionRepository(
+		schema.table,
+		schema.reaction,
+		schema.issue,
+		schema.pullRequest,
+		schema.issueComment,
+		schema.prComment,
+	);
+	const forkRepository = new ForkRepository(
+		schema.table,
+		schema.fork,
+		schema.repository,
+	);
+	const starRepository = new StarRepository(
+		schema.table,
+		schema.star,
+		schema.user,
+		schema.repository,
+	);
 
 	// Create services
 	const userService = new UserService(userRepository);
 	const organizationService = new OrganizationService(organizationRepository);
-	const repositoryService = new RepositoryService(repoRepository);
+	const repositoryService = new RepositoryService(
+		repoRepository,
+		starRepository,
+		forkRepository,
+	);
+	const issueService = new IssueService(
+		issueRepository,
+		issueCommentRepository,
+		reactionRepository,
+	);
+	const pullRequestService = new PullRequestService(
+		pullRequestRepository,
+		prCommentRepository,
+		reactionRepository,
+	);
 
 	return {
 		userService,
 		organizationService,
 		repositoryService,
+		issueService,
+		pullRequestService,
 	};
 };
 
@@ -89,3 +157,5 @@ export * from "./entities";
 export * from "./UserService";
 export * from "./OrganizationService";
 export * from "./RepositoryService";
+export * from "./IssueService";
+export * from "./PullRequestService";

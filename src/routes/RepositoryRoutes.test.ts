@@ -1,7 +1,12 @@
 import type Fastify from "fastify";
 import { createApp } from "..";
 import { Config } from "../config";
-import type { OrganizationService, UserService } from "../services";
+import type {
+	OrganizationService,
+	UserService,
+	IssueService,
+	PullRequestService,
+} from "../services";
 import type { RepositoryService } from "../services/RepositoryService";
 import type {
 	RepositoryCreateRequest,
@@ -22,11 +27,51 @@ describe("RepositoryRoutes", () => {
 		updateRepository: jest.fn(),
 		deleteRepository: jest.fn(),
 		listRepositoriesByOwner: jest.fn(),
+		starRepository: jest.fn(),
+		unstarRepository: jest.fn(),
+		isStarred: jest.fn(),
+		listUserStars: jest.fn(),
+		createFork: jest.fn(),
+		deleteFork: jest.fn(),
+		listForks: jest.fn(),
+		getFork: jest.fn(),
 	} as unknown as RepositoryService);
+	const mockIssueService = jest.mocked<IssueService>({
+		createIssue: jest.fn(),
+		getIssue: jest.fn(),
+		listIssues: jest.fn(),
+		updateIssue: jest.fn(),
+		deleteIssue: jest.fn(),
+		createComment: jest.fn(),
+		getComment: jest.fn(),
+		listComments: jest.fn(),
+		updateComment: jest.fn(),
+		deleteComment: jest.fn(),
+		addReaction: jest.fn(),
+		listReactions: jest.fn(),
+		removeReaction: jest.fn(),
+	} as unknown as IssueService);
+	const mockPullRequestService = jest.mocked<PullRequestService>({
+		createPullRequest: jest.fn(),
+		getPullRequest: jest.fn(),
+		listPullRequests: jest.fn(),
+		updatePullRequest: jest.fn(),
+		deletePullRequest: jest.fn(),
+		createComment: jest.fn(),
+		getComment: jest.fn(),
+		listComments: jest.fn(),
+		updateComment: jest.fn(),
+		deleteComment: jest.fn(),
+		addReaction: jest.fn(),
+		listReactions: jest.fn(),
+		removeReaction: jest.fn(),
+	} as unknown as PullRequestService);
 	const mockServices = {
 		userService: {} as unknown as UserService,
 		organizationService: {} as unknown as OrganizationService,
 		repositoryService: mockRepositoryService,
+		issueService: mockIssueService,
+		pullRequestService: mockPullRequestService,
 	};
 
 	beforeEach(() => {
@@ -584,6 +629,262 @@ describe("RepositoryRoutes", () => {
 			expect(body).toHaveProperty("detail");
 			expect(body).toHaveProperty("entityType", "RepositoryEntity");
 			expect(body).toHaveProperty("pk", "REPO#testuser#test-repo");
+		});
+	});
+
+	describe("PUT /:owner/:repoName/star", () => {
+		it("should star a repository successfully", async () => {
+			// Arrange
+			const starResponse = {
+				username: "starrer",
+				repo_owner: "testuser",
+				repo_name: "test-repo",
+				created_at: "2024-01-01T00:00:00.000Z",
+				updated_at: "2024-01-01T00:00:00.000Z",
+			};
+			mockRepositoryService.starRepository.mockResolvedValue(starResponse);
+
+			// Act
+			const result = await app.inject({
+				method: "PUT",
+				url: "/v1/repositories/testuser/test-repo/star",
+				payload: {
+					username: "starrer",
+				},
+			});
+
+			// Assert
+			expect(result.statusCode).toBe(204);
+			expect(mockRepositoryService.starRepository).toHaveBeenCalledWith(
+				"starrer",
+				"testuser",
+				"test-repo",
+			);
+		});
+	});
+
+	describe("DELETE /:owner/:repoName/star", () => {
+		it("should unstar a repository successfully", async () => {
+			// Arrange
+			mockRepositoryService.unstarRepository.mockResolvedValue(undefined);
+
+			// Act
+			const result = await app.inject({
+				method: "DELETE",
+				url: "/v1/repositories/testuser/test-repo/star",
+				payload: {
+					username: "starrer",
+				},
+			});
+
+			// Assert
+			expect(result.statusCode).toBe(204);
+			expect(mockRepositoryService.unstarRepository).toHaveBeenCalledWith(
+				"starrer",
+				"testuser",
+				"test-repo",
+			);
+		});
+	});
+
+	describe("GET /:owner/:repoName/star", () => {
+		it("should check if repository is starred - true", async () => {
+			// Arrange
+			mockRepositoryService.isStarred.mockResolvedValue(true);
+
+			// Act
+			const result = await app.inject({
+				method: "GET",
+				url: "/v1/repositories/testuser/test-repo/star?username=starrer",
+			});
+
+			// Assert
+			expect(result.statusCode).toBe(200);
+			const body = JSON.parse(result.body);
+			expect(body).toEqual({ starred: true });
+			expect(mockRepositoryService.isStarred).toHaveBeenCalledWith(
+				"starrer",
+				"testuser",
+				"test-repo",
+			);
+		});
+
+		it("should check if repository is starred - false", async () => {
+			// Arrange
+			mockRepositoryService.isStarred.mockResolvedValue(false);
+
+			// Act
+			const result = await app.inject({
+				method: "GET",
+				url: "/v1/repositories/testuser/test-repo/star?username=starrer",
+			});
+
+			// Assert
+			expect(result.statusCode).toBe(200);
+			const body = JSON.parse(result.body);
+			expect(body).toEqual({ starred: false });
+		});
+	});
+
+	describe("POST /:owner/:repoName/forks", () => {
+		it("should create a fork successfully", async () => {
+			// Arrange
+			const forkResponse = {
+				original_owner: "testuser",
+				original_repo: "test-repo",
+				fork_owner: "forker",
+				fork_repo: "forked-repo",
+				created_at: "2024-01-01T00:00:00.000Z",
+				updated_at: "2024-01-01T00:00:00.000Z",
+			};
+			mockRepositoryService.createFork.mockResolvedValue(forkResponse);
+
+			// Act
+			const result = await app.inject({
+				method: "POST",
+				url: "/v1/repositories/testuser/test-repo/forks",
+				payload: {
+					fork_owner: "forker",
+					fork_repo: "forked-repo",
+				},
+			});
+
+			// Assert
+			expect(result.statusCode).toBe(201);
+			const body = JSON.parse(result.body);
+			expect(body).toEqual(forkResponse);
+			expect(mockRepositoryService.createFork).toHaveBeenCalledWith(
+				"testuser",
+				"test-repo",
+				"forker",
+				"forked-repo",
+			);
+		});
+	});
+
+	describe("GET /:owner/:repoName/forks", () => {
+		it("should list forks successfully", async () => {
+			// Arrange
+			const forks = [
+				{
+					original_owner: "testuser",
+					original_repo: "test-repo",
+					fork_owner: "forker1",
+					fork_repo: "fork1",
+					created_at: "2024-01-01T00:00:00.000Z",
+					updated_at: "2024-01-01T00:00:00.000Z",
+				},
+				{
+					original_owner: "testuser",
+					original_repo: "test-repo",
+					fork_owner: "forker2",
+					fork_repo: "fork2",
+					created_at: "2024-01-02T00:00:00.000Z",
+					updated_at: "2024-01-02T00:00:00.000Z",
+				},
+			];
+			mockRepositoryService.listForks.mockResolvedValue(forks);
+
+			// Act
+			const result = await app.inject({
+				method: "GET",
+				url: "/v1/repositories/testuser/test-repo/forks",
+			});
+
+			// Assert
+			expect(result.statusCode).toBe(200);
+			const body = JSON.parse(result.body);
+			expect(body).toEqual(forks);
+			expect(mockRepositoryService.listForks).toHaveBeenCalledWith(
+				"testuser",
+				"test-repo",
+			);
+		});
+
+		it("should return empty array when no forks exist", async () => {
+			// Arrange
+			mockRepositoryService.listForks.mockResolvedValue([]);
+
+			// Act
+			const result = await app.inject({
+				method: "GET",
+				url: "/v1/repositories/testuser/test-repo/forks",
+			});
+
+			// Assert
+			expect(result.statusCode).toBe(200);
+			const body = JSON.parse(result.body);
+			expect(body).toEqual([]);
+		});
+	});
+
+	describe("GET /:owner/:repoName/forks/:forkOwner", () => {
+		it("should get a specific fork successfully", async () => {
+			// Arrange
+			const fork = {
+				original_owner: "testuser",
+				original_repo: "test-repo",
+				fork_owner: "forker",
+				fork_repo: "test-repo",
+				created_at: "2024-01-01T00:00:00.000Z",
+				updated_at: "2024-01-01T00:00:00.000Z",
+			};
+			mockRepositoryService.getFork.mockResolvedValue(fork);
+
+			// Act
+			const result = await app.inject({
+				method: "GET",
+				url: "/v1/repositories/testuser/test-repo/forks/forker",
+			});
+
+			// Assert
+			expect(result.statusCode).toBe(200);
+			const body = JSON.parse(result.body);
+			expect(body).toEqual(fork);
+			expect(mockRepositoryService.getFork).toHaveBeenCalledWith(
+				"testuser",
+				"test-repo",
+				"forker",
+				"test-repo",
+			);
+		});
+
+		it("should return 404 when fork not found", async () => {
+			// Arrange
+			mockRepositoryService.getFork.mockRejectedValue(
+				new EntityNotFoundError("ForkEntity", "FORK#testuser#test-repo#forker"),
+			);
+
+			// Act
+			const result = await app.inject({
+				method: "GET",
+				url: "/v1/repositories/testuser/test-repo/forks/forker",
+			});
+
+			// Assert
+			expect(result.statusCode).toBe(404);
+		});
+	});
+
+	describe("DELETE /:owner/:repoName/forks/:forkOwner", () => {
+		it("should delete a fork successfully", async () => {
+			// Arrange
+			mockRepositoryService.deleteFork.mockResolvedValue(undefined);
+
+			// Act
+			const result = await app.inject({
+				method: "DELETE",
+				url: "/v1/repositories/testuser/test-repo/forks/forker",
+			});
+
+			// Assert
+			expect(result.statusCode).toBe(204);
+			expect(mockRepositoryService.deleteFork).toHaveBeenCalledWith(
+				"testuser",
+				"test-repo",
+				"forker",
+				"test-repo",
+			);
 		});
 	});
 });

@@ -1,3 +1,10 @@
-export { UserEntity } from "./UserEntity";
-export { OrganizationEntity } from "./OrganizationEntity";
-export { RepositoryEntity } from "./RepositoryEntity";
+export * from "./UserEntity";
+export * from "./OrganizationEntity";
+export * from "./RepositoryEntity";
+export * from "./IssueEntity";
+export * from "./PullRequestEntity";
+export * from "./IssueCommentEntity";
+export * from "./PRCommentEntity";
+export * from "./ReactionEntity";
+export * from "./ForkEntity";
+export * from "./StarEntity";

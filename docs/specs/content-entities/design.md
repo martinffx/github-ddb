@@ -1,11 +1,22 @@
 # Content Entities Design
 
+**Implementation Status:** NOT IMPLEMENTED - This is a technical design specification for future implementation
+
+## Implementation Status Note
+
+This design document describes the intended technical architecture for the content entities layer. **None of these entities have been implemented yet.** The design is based on the established patterns from the core-entities layer (User, Organization, Repository), which are fully implemented and can be used as reference implementations.
+
+**Prerequisites before implementation:**
+1. Add GSI4 to `/src/repos/schema.ts` (currently only GSI1, GSI2, GSI3 exist)
+2. Follow the existing entity pattern: Record definition in `schema.ts`, Entity class in `/src/services/entities/`, Repository class in `/src/repos/`
+3. Use the existing test patterns from `UserRepository.test.ts` as a template
+
 ## 1. Feature Overview
 
 The Content Entities feature represents **Phase 2** of the GitHub DynamoDB implementation, building upon the core-entities foundation (User, Repository, Organization). This phase introduces the primary content layer that enables GitHub's core functionality through 7 specialized entities:
 
 - **Issues & Pull Requests**: Sequential numbering with status tracking
-- **Comments**: Thread-based discussions for Issues and PRs  
+- **Comments**: Thread-based discussions for Issues and PRs
 - **Reactions**: Polymorphic emoji responses to any content type
 - **Forks & Stars**: Repository relationship management
 
@@ -20,7 +31,7 @@ Content Entities Layer (Phase 2)
 ├── Sequential Content
 │   ├── Issue (GSI4 for status queries)
 │   └── Pull Request (GSI1 for repo listing)
-├── Discussion Layer  
+├── Discussion Layer
 │   ├── Issue Comment (item collections)
 │   └── PR Comment (item collections)
 ├── Interaction Layer
@@ -35,7 +46,7 @@ Dependencies: Core Entities (User, Repository, Organization)
 ### Data Flow
 
 1. **Sequential Numbering**: Issues and PRs share atomic counters per repository
-2. **Content Hierarchy**: Repository → Issue/PR → Comments → Reactions  
+2. **Content Hierarchy**: Repository → Issue/PR → Comments → Reactions
 3. **Cross-Entity Validation**: All entities validate against core User/Repository
 4. **GSI Optimization**: Status queries (GSI4), repository listing (GSI1), fork trees (GSI2)
 
@@ -240,7 +251,7 @@ Sequential numbering for Issues and Pull Requests uses atomic DynamoDB counters 
 class SequentialNumberGenerator {
   async getNextNumber(owner: string, repoName: string): Promise<number> {
     const counterKey = `COUNTER#${owner}#${repoName}`;
-    
+
     try {
       // Atomic increment using UpdateItem with ADD
       const result = await ddbClient.updateItem({
@@ -251,7 +262,7 @@ class SequentialNumberGenerator {
         ExpressionAttributeValues: { ':increment': 1 },
         ReturnValues: 'UPDATED_NEW'
       });
-      
+
       return result.Attributes.counter;
     } catch (error) {
       if (error.code === 'ValidationException') {
@@ -262,10 +273,10 @@ class SequentialNumberGenerator {
       throw error;
     }
   }
-  
+
   private async initializeCounter(owner: string, repoName: string): Promise<void> {
     const counterKey = `COUNTER#${owner}#${repoName}`;
-    
+
     await ddbClient.putItem({
       TableName: 'GitHubTable',
       Key: { PK: counterKey, SK: counterKey },
@@ -283,7 +294,7 @@ Open issues use reverse numbering (999999 - issue_number) in GSI4SK to maintain 
 ```typescript
 function generateGSI4Keys(issueNumber: number, status: string) {
   const paddedNumber = issueNumber.toString().padStart(6, '0');
-  
+
   if (status === 'open') {
     const reverseNumber = (999999 - issueNumber).toString().padStart(6, '0');
     return {
@@ -326,14 +337,14 @@ const GSIConfig = {
     purpose: 'Pull Request repository listing'
   },
   GSI2: {
-    partitionKey: 'GSI2PK', 
+    partitionKey: 'GSI2PK',
     sortKey: 'GSI2SK',
     projectionType: 'ALL',
     purpose: 'Fork adjacency list queries'
   },
   GSI4: {
     partitionKey: 'GSI4PK',
-    sortKey: 'GSI4SK', 
+    sortKey: 'GSI4SK',
     projectionType: 'ALL',
     purpose: 'Issue status queries (open/closed with reverse numbering)'
   }
@@ -363,10 +374,10 @@ class IssueRepository {
   async create(issue: IssueRequest): Promise<IssueResponse> {
     // Generate sequential number
     const issueNumber = await this.numberGenerator.getNextNumber(
-      issue.owner, 
+      issue.owner,
       issue.repoName
     );
-    
+
     // Create issue record with GSI4 keys
     const record = IssueRecord.fromRequest({
       ...issue,
@@ -375,11 +386,11 @@ class IssueRepository {
       SK: `ISSUE#${issueNumber.toString().padStart(6, '0')}`,
       ...this.generateGSI4Keys(issueNumber, issue.status || 'open')
     });
-    
+
     await IssueRecord.put(record);
     return record.toResponse();
   }
-  
+
   async listOpenByRepo(owner: string, repoName: string): Promise<IssueResponse[]> {
     const result = await IssueRecord.query(
       'GSI4PK = :pk AND begins_with(GSI4SK, :sk)',
@@ -391,15 +402,15 @@ class IssueRepository {
     );
     return result.Items.map(item => item.toResponse());
   }
-  
+
   async updateStatus(owner: string, repoName: string, number: number, status: string): Promise<void> {
     // Update both main record and GSI4 keys for status change
     const paddedNumber = number.toString().padStart(6, '0');
     const gsi4Keys = this.generateGSI4Keys(number, status);
-    
+
     await IssueRecord.update(
       { PK: `REPO#${owner}#${repoName}`, SK: `ISSUE#${paddedNumber}` },
-      { 
+      {
         status,
         updated_at: new Date().toISOString(),
         ...gsi4Keys
@@ -416,7 +427,7 @@ class PullRequestRepository {
   async create(pr: PullRequestRequest): Promise<PullRequestResponse> {
     const prNumber = await this.numberGenerator.getNextNumber(pr.owner, pr.repoName);
     const paddedNumber = prNumber.toString().padStart(6, '0');
-    
+
     const record = PullRequestRecord.fromRequest({
       ...pr,
       pr_number: prNumber,
@@ -425,11 +436,11 @@ class PullRequestRepository {
       GSI1PK: `PR#${pr.owner}#${pr.repoName}`,
       GSI1SK: `PR#${paddedNumber}`
     });
-    
+
     await PullRequestRecord.put(record);
     return record.toResponse();
   }
-  
+
   async listByRepo(owner: string, repoName: string): Promise<PullRequestResponse[]> {
     const result = await PullRequestRecord.query(
       'GSI1PK = :pk',
@@ -447,18 +458,18 @@ class PullRequestRepository {
 class IssueCommentRepository {
   async create(comment: IssueCommentRequest): Promise<IssueCommentResponse> {
     const commentId = this.idGenerator.generate(); // UUID or ULID
-    
+
     const record = IssueCommentRecord.fromRequest({
       ...comment,
       comment_id: commentId,
       PK: `ISSUECOMMENT#${comment.owner}#${comment.repoName}#${comment.issueNumber}`,
       SK: `ISSUECOMMENT#${commentId}`
     });
-    
+
     await IssueCommentRecord.put(record);
     return record.toResponse();
   }
-  
+
   async listByIssue(owner: string, repoName: string, issueNumber: number): Promise<IssueCommentResponse[]> {
     const result = await IssueCommentRecord.query(
       'PK = :pk',
@@ -476,21 +487,21 @@ class IssueCommentRepository {
 class ReactionRepository {
   async create(reaction: ReactionRequest): Promise<ReactionResponse> {
     const compositeKey = `${reaction.targetType}REACTION#${reaction.owner}#${reaction.repoName}#${reaction.targetId}#${reaction.username}`;
-    
+
     const record = ReactionRecord.fromRequest({
       ...reaction,
       PK: compositeKey,
       SK: compositeKey
     });
-    
+
     // Use condition to prevent duplicate reactions
     await ReactionRecord.put(record, {
       ConditionExpression: 'attribute_not_exists(PK)'
     });
-    
+
     return record.toResponse();
   }
-  
+
   async listByTarget(targetType: string, owner: string, repoName: string, targetId: string): Promise<ReactionResponse[]> {
     const result = await ReactionRecord.query(
       'begins_with(PK, :pk)',
@@ -510,7 +521,7 @@ The reaction system supports multiple target types using composite keys:
 ```typescript
 interface ReactionTarget {
   ISSUE: string;        // Issue number
-  PR: string;           // PR number  
+  PR: string;           // PR number
   ISSUECOMMENT: string; // Comment ID
   PRCOMMENT: string;    // Comment ID
 }
@@ -519,7 +530,7 @@ class ReactionTargetResolver {
   static resolveTargetKey(targetType: keyof ReactionTarget, owner: string, repoName: string, targetId: string): string {
     return `${targetType}REACTION#${owner}#${repoName}#${targetId}`;
   }
-  
+
   static validateTarget(targetType: keyof ReactionTarget, targetId: string): boolean {
     switch (targetType) {
       case 'ISSUE':
@@ -541,16 +552,16 @@ class ReactionTargetResolver {
 class ReactionAggregator {
   async getReactionSummary(targetType: string, owner: string, repoName: string, targetId: string): Promise<ReactionSummary> {
     const reactions = await this.reactionRepository.listByTarget(targetType, owner, repoName, targetId);
-    
+
     const summary: ReactionSummary = {
-      '+1': 0, '-1': 0, 'laugh': 0, 'hooray': 0, 
+      '+1': 0, '-1': 0, 'laugh': 0, 'hooray': 0,
       'confused': 0, 'heart': 0, 'rocket': 0, 'eyes': 0
     };
-    
+
     reactions.forEach(reaction => {
       summary[reaction.reaction_type] = (summary[reaction.reaction_type] || 0) + 1;
     });
-    
+
     return summary;
   }
 }
@@ -572,11 +583,11 @@ class ForkRepository {
       GSI2PK: `REPO#${fork.originalOwner}#${fork.originalRepo}`,
       GSI2SK: `FORK#${fork.forkOwner}`
     });
-    
+
     await ForkRecord.put(record);
     return record.toResponse();
   }
-  
+
   async listForksOfRepo(owner: string, repoName: string): Promise<ForkResponse[]> {
     const result = await ForkRecord.query(
       'GSI2PK = :pk AND begins_with(GSI2SK, :sk)',
@@ -588,20 +599,20 @@ class ForkRepository {
     );
     return result.Items.map(item => item.toResponse());
   }
-  
+
   async getForkTree(owner: string, repoName: string): Promise<ForkTree> {
     // Recursive fork tree construction
     const directForks = await this.listForksOfRepo(owner, repoName);
-    const tree: ForkTree = { 
+    const tree: ForkTree = {
       repo: `${owner}/${repoName}`,
       forks: []
     };
-    
+
     for (const fork of directForks) {
       const subTree = await this.getForkTree(fork.fork_owner, fork.fork_repo);
       tree.forks.push(subTree);
     }
-    
+
     return tree;
   }
 }
@@ -619,11 +630,11 @@ class StarRepository {
       PK: `ACCOUNT#${star.username}`,
       SK: `STAR#${star.repoOwner}#${star.repoName}`
     });
-    
+
     await StarRecord.put(record);
     return record.toResponse();
   }
-  
+
   async listStarsByUser(username: string): Promise<StarResponse[]> {
     const result = await StarRecord.query(
       'PK = :pk AND begins_with(SK, :sk)',
@@ -634,7 +645,7 @@ class StarRepository {
     );
     return result.Items.map(item => item.toResponse());
   }
-  
+
   async listStargazersByRepo(owner: string, repoName: string): Promise<string[]> {
     // Requires GSI or scan - consider adding GSI3 for reverse lookup if needed
     const result = await StarRecord.scan({
@@ -646,7 +657,7 @@ class StarRepository {
     });
     return result.Items.map(item => item.username);
   }
-  
+
   async isStarred(username: string, owner: string, repoName: string): Promise<boolean> {
     try {
       await StarRecord.get({
@@ -675,48 +686,48 @@ describe('Content Entities Integration', () => {
     await setupDynamoDBLocal();
     await createCoreEntitiesFixtures();
   });
-  
+
   describe('Issue Sequential Numbering', () => {
     it('should generate sequential numbers shared between issues and PRs', async () => {
       const repo = await createRepository('owner', 'repo');
-      
+
       const issue1 = await issueRepository.create({
         owner: 'owner',
         repoName: 'repo',
         title: 'First Issue',
         author: 'user1'
       });
-      
+
       const pr1 = await pullRequestRepository.create({
-        owner: 'owner', 
+        owner: 'owner',
         repoName: 'repo',
         title: 'First PR',
         author: 'user1',
         sourceBranch: 'feature',
         targetBranch: 'main'
       });
-      
+
       expect(issue1.issue_number).toBe(1);
       expect(pr1.pr_number).toBe(2);
     });
-    
+
     it('should handle concurrent sequential number generation', async () => {
-      const promises = Array(10).fill(0).map((_, i) => 
+      const promises = Array(10).fill(0).map((_, i) =>
         issueRepository.create({
           owner: 'owner',
-          repoName: 'repo', 
+          repoName: 'repo',
           title: `Issue ${i}`,
           author: 'user1'
         })
       );
-      
+
       const issues = await Promise.all(promises);
       const numbers = issues.map(issue => issue.issue_number).sort();
-      
+
       expect(numbers).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     });
   });
-  
+
   describe('GSI4 Status Queries', () => {
     it('should list open issues in reverse chronological order', async () => {
       // Create multiple issues
@@ -725,15 +736,15 @@ describe('Content Entities Integration', () => {
         issueRepository.create({ title: 'Issue 2', status: 'open' }),
         issueRepository.create({ title: 'Issue 3', status: 'closed' })
       ]);
-      
+
       const openIssues = await issueRepository.listOpenByRepo('owner', 'repo');
-      
+
       expect(openIssues).toHaveLength(2);
       expect(openIssues[0].title).toBe('Issue 2'); // Most recent first
       expect(openIssues[1].title).toBe('Issue 1');
     });
   });
-  
+
   describe('Cross-Entity Validation', () => {
     it('should validate user existence when creating issues', async () => {
       await expect(issueRepository.create({
@@ -743,7 +754,7 @@ describe('Content Entities Integration', () => {
         author: 'nonexistent_user'
       })).rejects.toThrow('User does not exist');
     });
-    
+
     it('should validate repository existence when creating content', async () => {
       await expect(issueRepository.create({
         owner: 'nonexistent_owner',
@@ -772,11 +783,11 @@ class ContentEntityFactories {
       ...overrides
     };
   }
-  
+
   static createPullRequest(overrides: Partial<PullRequestRequest> = {}): PullRequestRequest {
     return {
       owner: 'testowner',
-      repoName: 'testrepo', 
+      repoName: 'testrepo',
       title: 'Test PR',
       body: 'Test PR body',
       status: 'open',
@@ -786,7 +797,7 @@ class ContentEntityFactories {
       ...overrides
     };
   }
-  
+
   static createReaction(overrides: Partial<ReactionRequest> = {}): ReactionRequest {
     return {
       targetType: 'ISSUE',
@@ -818,21 +829,21 @@ interface CoreEntityDependencies {
 // Cross-Entity Validation
 class ContentEntityValidator {
   constructor(private coreEntities: CoreEntityDependencies) {}
-  
+
   async validateUser(username: string): Promise<void> {
     const user = await this.coreEntities.userRepository.get(username);
     if (!user) throw new Error(`User ${username} does not exist`);
   }
-  
+
   async validateRepository(owner: string, repoName: string): Promise<void> {
     const repo = await this.coreEntities.repositoryRepository.get(owner, repoName);
     if (!repo) throw new Error(`Repository ${owner}/${repoName} does not exist`);
   }
-  
+
   async validateRepositoryAccess(username: string, owner: string, repoName: string): Promise<void> {
     await this.validateUser(username);
     await this.validateRepository(owner, repoName);
-    
+
     // Additional access control validation
     const hasAccess = await this.coreEntities.repositoryRepository.hasAccess(username, owner, repoName);
     if (!hasAccess) throw new Error(`User ${username} does not have access to ${owner}/${repoName}`);
@@ -848,7 +859,7 @@ interface SequentialNumberGenerator {
   getNextNumber(owner: string, repoName: string): Promise<number>;
 }
 
-// Comment ID Generation  
+// Comment ID Generation
 interface CommentIdGenerator {
   generate(): string; // UUID v4 or ULID
 }
@@ -875,7 +886,7 @@ All content entity operations must validate against core entities:
 ### GSI Optimization
 
 - **GSI1**: Optimized for PR repository queries with natural sorting
-- **GSI2**: Enables efficient fork tree traversal and adjacency operations  
+- **GSI2**: Enables efficient fork tree traversal and adjacency operations
 - **GSI4**: Handles issue status queries with reverse numbering for open issues
 
 ### Error Handling Patterns

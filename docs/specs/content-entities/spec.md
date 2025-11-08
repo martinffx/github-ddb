@@ -2,38 +2,56 @@
 
 ## Feature Overview
 
-**Phase:** 2 - Content Layer  
-**Dependencies:** core-entities  
+**Phase:** 2 - Content Layer
+**Dependencies:** core-entities
 **Feature ID:** content-entities
+**Implementation Status:** NOT STARTED - This is a design specification for future implementation
 
 ### User Story
 As a backend developer, I want to implement Issue, PullRequest, Comment, and Reaction entities with relationship management so that I can build the content layer of the GitHub data model on top of the core entities foundation.
 
+## Implementation Status
+
+**Current State:** This feature has NOT been implemented. The specification documents the intended design for the content entities layer, which will be built on top of the existing core entities foundation (User, Organization, Repository).
+
+**What Exists:**
+- Core entities (User, Organization, Repository) are fully implemented with the layered architecture pattern
+- DynamoDB table with GSI1, GSI2, and GSI3 configured
+- Entity transformation patterns (fromRequest, fromRecord, toRecord, toResponse)
+- Test infrastructure with DynamoDB Local
+
+**What Needs to be Built:**
+- 7 new DynamoDB-Toolbox entity records (Issue, PullRequest, IssueComment, PRComment, Reaction, Fork, Star)
+- 7 new repository classes for data access
+- GSI4 must be added to the table schema for issue status queries
+- Counter entity for sequential numbering
+- Test files for all new entities
+
 ## Acceptance Criteria
 
 ### AC-1: Issue Entity with Sequential Numbering
-**GIVEN** a repository exists  
-**WHEN** I create an Issue  
+**GIVEN** a repository exists
+**WHEN** I create an Issue
 **THEN** it uses `REPO#<owner>#<reponame>` as PK and `ISSUE#<zero_padded_number>` as SK with sequential numbering
 
 ### AC-2: PullRequest Entity with GSI1 Support
-**GIVEN** a repository exists  
-**WHEN** I create a PullRequest  
+**GIVEN** a repository exists
+**WHEN** I create a PullRequest
 **THEN** it uses `PR#<owner>#<reponame>#<zero_padded_number>` as PK/SK and appears in GSI1 for repository PR listing
 
 ### AC-3: Comment Entities with Item Collections
-**GIVEN** an Issue or PR exists  
-**WHEN** I add Comments  
+**GIVEN** an Issue or PR exists
+**WHEN** I add Comments
 **THEN** they use item collections under `ISSUECOMMENT#` or `PRCOMMENT#` keys with proper parent relationships
 
 ### AC-4: Reaction Entity with Polymorphic Targeting
-**GIVEN** any Issue, PR, or Comment exists  
-**WHEN** users add Reactions  
+**GIVEN** any Issue, PR, or Comment exists
+**WHEN** users add Reactions
 **THEN** they use polymorphic composite keys allowing multiple reaction types per user per target
 
 ### AC-5: Fork and Star Relationship Management
-**GIVEN** repositories exist  
-**WHEN** managing Forks and Stars  
+**GIVEN** repositories exist
+**WHEN** managing Forks and Stars
 **THEN** they use adjacency list patterns with GSI2 for fork relationships and many-to-many for star relationships
 
 ## Business Rules
@@ -51,6 +69,38 @@ As a backend developer, I want to implement Issue, PullRequest, Comment, and Rea
 ## Technical Implementation Details
 
 ### DynamoDB Table Design
+
+**IMPORTANT:** The existing table schema must be updated to add GSI4 before implementing content entities.
+
+#### Required Schema Changes
+
+Add GSI4 to the table definition in `/src/repos/schema.ts`:
+
+```typescript
+// Add to AttributeDefinitions
+{ AttributeName: "GSI4PK", AttributeType: "S" },
+{ AttributeName: "GSI4SK", AttributeType: "S" },
+
+// Add to GlobalSecondaryIndexes
+{
+  IndexName: "GSI4",
+  KeySchema: [
+    { AttributeName: "GSI4PK", KeyType: "HASH" },
+    { AttributeName: "GSI4SK", KeyType: "RANGE" },
+  ],
+  Projection: { ProjectionType: "ALL" },
+}
+```
+
+And add to the Table definition:
+
+```typescript
+GSI4: {
+  type: "global",
+  partitionKey: { name: "GSI4PK", type: "string" },
+  sortKey: { name: "GSI4SK", type: "string" },
+}
+```
 
 #### Entity Relationship Diagram (ERD)
 
@@ -227,6 +277,7 @@ erDiagram
 | Reaction | `{TYPE}REACTION#{target}#{user}` | `{TYPE}REACTION#{target}#{user}` | - | - | - | - |
 | Fork | `REPO#{orig_owner}#{orig_repo}` | `FORK#{fork_owner}` | - | Fork queries | - | - |
 | Star | `ACCOUNT#{username}` | `STAR#{owner}#{repo}` | - | - | - | - |
+| Counter | `COUNTER#{owner}#{repo}` | `COUNTER#{owner}#{repo}` | - | - | - | - |
 
 #### Access Patterns
 
@@ -333,7 +384,8 @@ The following chart shows all content entities with their complete attribute sch
 │ Attributes:                                                 │
 │ • target_type: 'issue'|'pr'|'issue_comment'|'pr_comment'   │
 │ • target_id: string (issue/pr number or comment UUID)      │
-│ • reaction_type: '👍'|'👎'|'😄'|'🎉'|'😕'|'❤️'|'🚀'|'👀' │
+│ • reaction_type: '+1'|'-1'|'laugh'|'hooray'|'confused'|    │
+│                  'heart'|'rocket'|'eyes'                   │
 │ • username: string (required, references User)             │
 │ Note: created_at handled by DynamoDB-Toolbox               │
 └─────────────────────────────────────────────────────────────┘
@@ -379,83 +431,11 @@ The following chart shows all content entities with their complete attribute sch
 └─────────────────────────────────────────────────────────────┘
 ```
 
-#### Legacy Key Pattern Documentation
-
-#### Issue Entity
-```
-PK: REPO#<owner>#<reponame>
-SK: ISSUE#<zero_padded_number>
-GSI4PK: REPO#<owner>#<reponame>
-GSI4SK (open): ISSUE#OPEN#<999999_minus_number>
-GSI4SK (closed): #ISSUE#CLOSED#<zero_padded_number>
-
-Attributes: [issue_number, title, body, status, author, assignees]
-Note: created_at/updated_at handled automatically by DynamoDB-Toolbox
-```
-
-#### PullRequest Entity
-```
-PK: PR#<owner>#<reponame>#<zero_padded_number>
-SK: PR#<owner>#<reponame>#<zero_padded_number>
-GSI1PK: PR#<owner>#<reponame>
-GSI1SK: PR#<zero_padded_number>
-
-Attributes: [pr_number, title, body, status, author, source_branch, target_branch, merge_commit_sha]
-Note: created_at/updated_at handled automatically by DynamoDB-Toolbox
-```
-
-#### IssueComment Entity
-```
-PK: ISSUECOMMENT#<owner>#<reponame>#<issue_number>
-SK: ISSUECOMMENT#<comment_id>
-
-Attributes: [comment_id, issue_number, content, author]
-Note: created_at/updated_at handled automatically by DynamoDB-Toolbox
-```
-
-#### PRComment Entity
-```
-PK: PRCOMMENT#<owner>#<reponame>#<pr_number>
-SK: PRCOMMENT#<comment_id>
-
-Attributes: [comment_id, pr_number, content, author, file_path, line_number]
-Note: created_at/updated_at handled automatically by DynamoDB-Toolbox
-```
-
-#### Reaction Entity
-```
-PK: <target_type>REACTION#<owner>#<reponame>#<target_id>#<username>
-SK: <target_type>REACTION#<owner>#<reponame>#<target_id>#<username>
-
-Attributes: [target_type, target_id, reaction_type, username]
-Note: created_at handled automatically by DynamoDB-Toolbox
-```
-
-#### Fork Entity
-```
-PK: REPO#<original_owner>#<original_repo>
-SK: FORK#<fork_owner>
-GSI2PK: REPO#<original_owner>#<original_repo>
-GSI2SK: FORK#<fork_owner>
-
-Attributes: [original_owner, original_repo, fork_owner, fork_repo]
-Note: created_at handled automatically by DynamoDB-Toolbox
-```
-
-#### Star Entity
-```
-PK: ACCOUNT#<username>
-SK: STAR#<owner>#<reponame>
-
-Attributes: [username, repo_owner, repo_name]
-Note: created_at handled automatically by DynamoDB-Toolbox
-```
-
 ### Sequential Numbering Strategy
 
 - **Strategy:** Atomic counter using DynamoDB conditional writes
 - **Implementation:** Separate counter item per repository for issues/PRs
-- **Key Pattern:** `COUNTER#<owner>#<reponame>`
+- **Key Pattern:** `COUNTER#{owner}#{reponame}`
 - **Zero Padding:** 6 digits (000001, 000002, etc.)
 
 ### GSI Usage Patterns
@@ -463,20 +443,20 @@ Note: created_at handled automatically by DynamoDB-Toolbox
 #### GSI1 - PullRequest Repository Listing
 ```
 Purpose: List PRs by repository
-Query Pattern: GSI1PK=PR#<owner>#<repo>, sort by GSI1SK=PR#<number>
+Query Pattern: GSI1PK=PR#{owner}#{repo}, sort by GSI1SK=PR#{number}
 ```
 
 #### GSI2 - Fork Relationship Queries
 ```
 Purpose: Find forks of a repository
-Query Pattern: GSI2PK=REPO#<owner>#<repo>, filter GSI2SK begins_with FORK#
+Query Pattern: GSI2PK=REPO#{owner}#{repo}, filter GSI2SK begins_with FORK#
 ```
 
 #### GSI4 - Issue Status Queries
 ```
 Purpose: Issue status queries
-Open Issues: GSI4PK=REPO#<owner>#<repo>, GSI4SK begins_with ISSUE#OPEN#
-Closed Issues: GSI4PK=REPO#<owner>#<repo>, GSI4SK begins_with #ISSUE#CLOSED#
+Open Issues: GSI4PK=REPO#{owner}#{repo}, GSI4SK begins_with ISSUE#OPEN#
+Closed Issues: GSI4PK=REPO#{owner}#{repo}, GSI4SK begins_with #ISSUE#CLOSED#
 ```
 
 ### Repository Operations
@@ -535,16 +515,17 @@ All content entities implement the standard transformation interface:
 
 ## Implementation Sequence
 
-1. **Sequential numbering utility for issues and PRs** - Core utility for generating sequential numbers
-2. **Issue entity with GSI4 status query support** - Primary content entity with status filtering
-3. **PullRequest entity with GSI1 repository listing** - PR entity with repository-based queries
-4. **IssueComment and PRComment entities with item collections** - Comment system for both content types
-5. **Reaction entity with polymorphic targeting** - Reaction system supporting all content types
-6. **Fork entity with adjacency list pattern and GSI2** - Repository relationship management
-7. **Star entity with many-to-many relationship pattern** - User-repository starring system
-8. **Repository classes for all content entities** - Data access layer implementation
-9. **Integration tests with core entities** - Validation of cross-entity relationships
-10. **End-to-end workflow testing** - Complete feature validation
+1. **Add GSI4 to table schema** - Update schema.ts to include GSI4 configuration
+2. **Sequential numbering utility** - Implement atomic counter for issues and PRs
+3. **Issue entity with GSI4 status query support** - Primary content entity with status filtering
+4. **PullRequest entity with GSI1 repository listing** - PR entity with repository-based queries
+5. **IssueComment and PRComment entities with item collections** - Comment system for both content types
+6. **Reaction entity with polymorphic targeting** - Reaction system supporting all content types
+7. **Fork entity with adjacency list pattern and GSI2** - Repository relationship management
+8. **Star entity with many-to-many relationship pattern** - User-repository starring system
+9. **Repository classes for all content entities** - Data access layer implementation
+10. **Integration tests with core entities** - Validation of cross-entity relationships
+11. **End-to-end workflow testing** - Complete feature validation
 
 ## Scope
 
@@ -562,8 +543,8 @@ All content entities implement the standard transformation interface:
 - Integration with existing core entities (User, Repository)
 
 ### Excluded Features
-- REST API endpoints and route handlers
-- Service layer business logic and validation
+- REST API endpoints and route handlers (will be added in subsequent phase)
+- Service layer business logic and validation (will be added after repositories)
 - Advanced PR features (reviews, approvals, merge conflicts)
 - Issue and PR templates, labels, and automation
 - Notification system for content changes
@@ -572,13 +553,16 @@ All content entities implement the standard transformation interface:
 
 ## Dependencies
 
-- **core-entities** - Requires User and Repository entities for referential integrity
+- **core-entities** - Requires User and Repository entities for referential integrity (✅ IMPLEMENTED)
 - Phase 2 implementation building on Phase 1 foundation
 
 ## Next Steps
 
-This specification is ready for the **spec:design** phase where the technical architecture will be designed in detail, including:
-- DynamoDB-Toolbox entity definitions
-- Repository pattern implementation
-- Sequential numbering service design
-- Integration patterns with core entities
+This specification is ready for the **spec:implement** phase where the entities will be created following the established patterns from core-entities:
+
+1. Add GSI4 to table schema
+2. Create entity records in `/src/repos/schema.ts`
+3. Create entity classes in `/src/services/entities/`
+4. Create repository classes in `/src/repos/`
+5. Write comprehensive tests following the UserRepository.test.ts pattern
+6. Validate against the design.md technical specifications

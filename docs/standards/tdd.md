@@ -637,6 +637,175 @@ describe('UserRepository', () => {
 4. **Fast feedback** - Router and Service tests run without database
 5. **Real validation** - Repository tests use actual database constraints
 6. **No test categories** - Just tests that verify the system works
+7. **NEVER MOCK ENTITIES** - Always instantiate real entity instances as test fixtures
+
+## Entity Testing Standard: No Mocking Allowed
+
+**Core Principle**: Entities are domain models that contain business logic, validation, and transformation methods. They must NEVER be mocked in tests - always instantiate them as real objects.
+
+### Why Never Mock Entities?
+
+1. **Entities contain logic** - Mocking bypasses validation, transformation, and business rules
+2. **Tests miss bugs** - Mocked `toResponse()` or `validate()` methods hide real entity errors
+3. **False confidence** - Tests pass but real code fails when entities are exercised
+4. **Coverage inflation** - Mock objects don't count as entity coverage
+5. **Fragile tests** - Changing entity internals breaks mocked test expectations
+
+### ❌ WRONG: Mocking Entity Methods
+
+```typescript
+// BAD - Mocking entity behavior
+const mockComment = {
+  owner: "testowner",
+  commentId: "comment-123",
+  body: "Test comment",
+  toResponse: jest.fn().mockReturnValue({  // ❌ Mocked method
+    comment_id: "comment-123",
+    body: "Test comment",
+    created_at: "2024-01-01T00:00:00.000Z"
+  }),
+  updateWith: jest.fn().mockReturnValue({  // ❌ Mocked method
+    body: "Updated comment"
+  })
+};
+
+mockRepo.get.mockResolvedValue(mockComment as any);  // ❌ Type cast hides problems
+```
+
+**Problems**:
+- `toResponse()` logic never executes (might have bugs)
+- `updateWith()` validation never runs (invalid updates pass)
+- Type casting `as any` silences TypeScript errors
+- Entity coverage stays low despite "tested" code
+
+### ✅ CORRECT: Instantiate Real Entities
+
+```typescript
+// GOOD - Real entity instance
+const comment = new IssueCommentEntity({
+  owner: "testowner",
+  repoName: "testrepo",
+  issueNumber: 1,
+  commentId: "comment-123",
+  body: "Test comment",
+  author: "commenter"
+});
+
+mockRepo.get.mockResolvedValue(comment);  // ✅ Real instance, no cast needed
+
+// When service calls comment.toResponse()
+const result = await service.getComment("owner", "repo", 1, "comment-123");
+// Real transformation logic executes, catches bugs
+```
+
+**Benefits**:
+- Real `toResponse()` transformation catches field mapping errors
+- Real `validate()` methods catch invalid data
+- Entity coverage increases naturally through usage
+- Type safety without casting
+- Tests verify actual behavior
+
+### Entity Test Fixtures Pattern
+
+Create reusable factory functions for test data:
+
+```typescript
+// test/fixtures/entities.ts
+import { IssueCommentEntity, ReactionEntity } from "../../src/services/entities";
+
+export const createTestComment = (overrides = {}) => {
+  return new IssueCommentEntity({
+    owner: "testowner",
+    repoName: "testrepo",
+    issueNumber: 1,
+    commentId: "comment-123",
+    body: "Test comment body",
+    author: "testuser",
+    ...overrides  // Allow customization
+  });
+};
+
+export const createTestReaction = (overrides = {}) => {
+  return new ReactionEntity({
+    owner: "testowner",
+    repoName: "testrepo",
+    targetType: "ISSUE" as const,
+    targetId: "1",
+    user: "reactor",
+    emoji: "👍",
+    ...overrides
+  });
+};
+
+// Usage in tests
+describe("IssueService", () => {
+  it("should get comment", async () => {
+    const comment = createTestComment({ body: "Custom text" });
+    mockRepo.get.mockResolvedValue(comment);
+
+    const result = await service.getComment("owner", "repo", 1, "comment-123");
+
+    // Real entity methods execute
+    expect(result.body).toBe("Custom text");
+  });
+});
+```
+
+### What to Mock vs. What to Instantiate
+
+**ALWAYS MOCK** (External Dependencies):
+- Repositories (database access)
+- External services (APIs, email, etc.)
+- Event buses
+- HTTP clients
+- Time/Date functions (for deterministic tests)
+
+**NEVER MOCK** (Domain Objects):
+- Entities (User, Issue, Comment, etc.)
+- Value Objects (Email, Address, Money, etc.)
+- Domain Exceptions (ValidationError, NotFoundError, etc.)
+
+### Migration: Fixing Mocked Entities
+
+If you find mocked entities in existing tests:
+
+1. **Identify mocked entity objects**: Look for `jest.fn().mockReturnValue()` on entity methods
+2. **Replace with real instances**: Use `new EntityClass({ ...props })`
+3. **Remove type casts**: Delete ` as any` or ` as EntityType` casts
+4. **Use factory functions**: Create reusable fixtures for common test data
+5. **Verify tests still pass**: Real entities should work identically
+
+**Before**:
+```typescript
+const mockEntity = {
+  id: 1,
+  toResponse: jest.fn().mockReturnValue({ id: 1, name: "Test" })
+};
+mockRepo.get.mockResolvedValue(mockEntity as any);
+```
+
+**After**:
+```typescript
+const entity = new UserEntity({ id: 1, name: "Test" });
+mockRepo.get.mockResolvedValue(entity);
+```
+
+### Enforcement
+
+To prevent entity mocking:
+
+1. **Code review checklist**: Check that all entity instances use `new EntityClass()`
+2. **Test patterns**: Use entity factory fixtures consistently
+3. **Coverage metrics**: Low entity coverage indicates possible mocking
+4. **Team agreement**: Make "no entity mocking" a documented standard
+
+### Benefits of Real Entity Instances
+
+- **Higher confidence**: Tests verify actual production code paths
+- **Better coverage**: Entity logic gets exercised naturally
+- **Catch bugs early**: Validation and transformation errors surface in tests
+- **Refactor safely**: Entity changes automatically update test behavior
+- **Type safety**: No need for `as any` casts that hide type errors
 
 ## Coverage Goals
 

@@ -1,0 +1,468 @@
+{
+  "feature": "stars",
+  "version": "1.0.0",
+  "status": "DESIGN",
+  "lastUpdated": "2025-11-02",
+  "overview": {
+    "description": "Technical design for the Star feature enabling many-to-many relationships between users and repositories",
+    "architecturePattern": "Layered Architecture with Event-Driven Microservices",
+    "layerFlow": "Router → Service → Repository → Entity → Database"
+  },
+  "domainModel": {
+    "entity": "StarEntity",
+    "attributes": {
+      "userName": {
+        "type": "string",
+        "required": true,
+        "description": "GitHub username who starred the repository"
+      },
+      "repoOwner": {
+        "type": "string",
+        "required": true,
+        "description": "Repository owner (user or organization)"
+      },
+      "repoName": {
+        "type": "string",
+        "required": true,
+        "description": "Repository name"
+      },
+      "starredAt": {
+        "type": "DateTime",
+        "required": false,
+        "default": "DateTime.utc()",
+        "description": "Timestamp when the star was created"
+      }
+    },
+    "transformations": {
+      "fromRequest": {
+        "signature": "static fromRequest(data: StarCreateRequest): StarEntity",
+        "input": {
+          "user_name": "string",
+          "repo_owner": "string",
+          "repo_name": "string"
+        },
+        "description": "Transform API request to domain entity"
+      },
+      "fromRecord": {
+        "signature": "static fromRecord(record: StarFormatted): StarEntity",
+        "input": "DynamoDB record with all attributes including timestamps",
+        "description": "Transform DynamoDB record to domain entity"
+      },
+      "toRecord": {
+        "signature": "toRecord(): StarInput",
+        "output": {
+          "user_name": "string",
+          "repo_owner": "string",
+          "repo_name": "string",
+          "starred_at": "string (ISO 8601)"
+        },
+        "description": "Transform domain entity to DynamoDB record format"
+      },
+      "toResponse": {
+        "signature": "toResponse(): StarResponse",
+        "output": {
+          "user_name": "string",
+          "repo_owner": "string",
+          "repo_name": "string",
+          "starred_at": "string (ISO 8601)"
+        },
+        "description": "Transform domain entity to API response"
+      }
+    },
+    "validation": {
+      "rules": [
+        "userName must be a valid GitHub username",
+        "repoOwner must be a valid GitHub username or organization",
+        "repoName must be a valid repository name",
+        "starredAt must be a valid ISO 8601 timestamp if provided"
+      ],
+      "businessRules": [
+        "A user can star a repository only once (enforced by composite key)",
+        "Stars must reference existing users and repositories (validated via transaction)",
+        "Starring is idempotent - returns existing star if already exists",
+        "Unstarring is idempotent - no error if already unstarred"
+      ]
+    }
+  },
+  "dataPersistence": {
+    "database": "DynamoDB",
+    "table": "GitHubTable",
+    "entity": "StarRecord",
+    "keyDesign": {
+      "mainTable": {
+        "description": "User → Repositories they've starred",
+        "PK": "ACCOUNT#{user_name}",
+        "SK": "STAR#{repo_owner}#{repo_name}#{starred_at}",
+        "queryPattern": "List all repositories starred by a user"
+      },
+      "gsi1": {
+        "description": "Repository → Users who starred it",
+        "GSI1PK": "REPO#{repo_owner}#{repo_name}",
+        "GSI1SK": "STAR#{user_name}#{starred_at}",
+        "queryPattern": "List all users who starred a repository"
+      }
+    },
+    "schema": {
+      "businessAttributes": {
+        "user_name": "string().required().key()",
+        "repo_owner": "string().required().key()",
+        "repo_name": "string().required().key()",
+        "starred_at": "string().default(() => new Date().toISOString()).savedAs('starred_at')"
+      },
+      "computedKeys": {
+        "PK": "string().key().link<typeof _schema>(({ user_name }) => `ACCOUNT#${user_name}`)",
+        "SK": "string().key().link<typeof _schema>(({ repo_owner, repo_name, starred_at }) => `STAR#${repo_owner}#${repo_name}#${starred_at}`)",
+        "GSI1PK": "string().link<typeof _schema>(({ repo_owner, repo_name }) => `REPO#${repo_owner}#${repo_name}`)",
+        "GSI1SK": "string().link<typeof _schema>(({ user_name, starred_at }) => `STAR#${user_name}#${starred_at}`)"
+      }
+    },
+    "accessPatterns": [
+      {
+        "pattern": "Star a repository",
+        "operation": "PutItem",
+        "index": "Main",
+        "key": "ACCOUNT#{username} / STAR#{owner}#{repo}#{timestamp}",
+        "condition": "PK does not exist (prevent duplicates)"
+      },
+      {
+        "pattern": "Unstar a repository",
+        "operation": "DeleteItem",
+        "index": "Main",
+        "key": "ACCOUNT#{username} / STAR#{owner}#{repo}#{timestamp}",
+        "notes": "Requires query to get timestamp first"
+      },
+      {
+        "pattern": "List user's starred repos",
+        "operation": "Query",
+        "index": "Main",
+        "key": "PK = ACCOUNT#{username}, SK begins_with(STAR#)",
+        "sort": "Reverse (newest first)"
+      },
+      {
+        "pattern": "List repository stargazers",
+        "operation": "Query",
+        "index": "GSI1",
+        "key": "GSI1PK = REPO#{owner}#{repo}, GSI1SK begins_with(STAR#)",
+        "sort": "Reverse (newest first)"
+      },
+      {
+        "pattern": "Check if starred",
+        "operation": "Query",
+        "index": "Main",
+        "key": "PK = ACCOUNT#{username}, SK begins_with(STAR#{owner}#{repo}#)",
+        "limit": 1
+      }
+    ]
+  },
+  "repositoryLayer": {
+    "className": "StarRepository",
+    "dependencies": [
+      "GithubTable",
+      "StarRecord",
+      "UserRecord (for validation)",
+      "RepoRecord (for validation)"
+    ],
+    "methods": {
+      "create": {
+        "signature": "async create(star: StarEntity): Promise<StarEntity>",
+        "description": "Create a star with validation that user and repository exist",
+        "implementation": [
+          "Build PutTransaction with duplicate check (PK exists: false)",
+          "Build ConditionCheck for user existence",
+          "Build ConditionCheck for repository existence",
+          "Execute transaction",
+          "Return star entity (idempotent - return existing if already starred)"
+        ],
+        "errorHandling": [
+          "TransactionCanceledException → Check if duplicate (idempotent) or missing entities",
+          "ConditionalCheckFailedException → ValidationError",
+          "DynamoDBToolboxError → ValidationError"
+        ]
+      },
+      "get": {
+        "signature": "async get(userName: string, repoOwner: string, repoName: string): Promise<StarEntity | undefined>",
+        "description": "Get a specific star relationship",
+        "implementation": [
+          "Query with PK = ACCOUNT#{userName}",
+          "SK begins_with STAR#{repoOwner}#{repoName}#",
+          "Limit 1 (since we don't know exact timestamp)",
+          "Return StarEntity.fromRecord() or undefined"
+        ]
+      },
+      "delete": {
+        "signature": "async delete(userName: string, repoOwner: string, repoName: string): Promise<void>",
+        "description": "Remove a star (idempotent)",
+        "implementation": [
+          "First call get() to retrieve exact timestamp",
+          "If not found, return (idempotent)",
+          "DeleteItem with full key including timestamp"
+        ]
+      },
+      "listByUser": {
+        "signature": "async listByUser(userName: string, options?: ListOptions): Promise<{ items: StarEntity[], offset?: string }>",
+        "description": "List repositories a user has starred",
+        "implementation": [
+          "Query main table with PK = ACCOUNT#{userName}",
+          "SK begins_with STAR#",
+          "Options: reverse: true (newest first), limit, exclusiveStartKey",
+          "Return items mapped through StarEntity.fromRecord()",
+          "Include pagination token"
+        ]
+      },
+      "listByRepo": {
+        "signature": "async listByRepo(repoOwner: string, repoName: string, options?: ListOptions): Promise<{ items: StarEntity[], offset?: string }>",
+        "description": "List users who starred a repository",
+        "implementation": [
+          "Query GSI1 with GSI1PK = REPO#{repoOwner}#{repoName}",
+          "GSI1SK begins_with STAR#",
+          "Options: reverse: true (newest first), limit, exclusiveStartKey",
+          "Return items mapped through StarEntity.fromRecord()",
+          "Include pagination token"
+        ]
+      },
+      "isStarred": {
+        "signature": "async isStarred(userName: string, repoOwner: string, repoName: string): Promise<boolean>",
+        "description": "Check if a user has starred a repository",
+        "implementation": [
+          "Call get() method",
+          "Return star !== undefined"
+        ]
+      }
+    },
+    "errorTypes": [
+      "ValidationError - Invalid input or missing referenced entities",
+      "DuplicateEntityError - Star already exists (handled as idempotent)",
+      "EntityNotFoundError - Referenced user or repository not found"
+    ]
+  },
+  "serviceLayer": {
+    "required": false,
+    "rationale": "Simple CRUD operations without complex business logic can be handled directly by repository",
+    "futureConsiderations": [
+      "Add service layer if star notifications are implemented",
+      "Add service layer if star count aggregation is needed",
+      "Add service layer if rate limiting is required"
+    ]
+  },
+  "routerLayer": {
+    "required": false,
+    "rationale": "API endpoints optional for initial implementation",
+    "potentialEndpoints": [
+      "PUT /users/{username}/starred/{owner}/{repo} - Star a repository",
+      "DELETE /users/{username}/starred/{owner}/{repo} - Unstar a repository",
+      "GET /users/{username}/starred - List user's starred repos",
+      "GET /repos/{owner}/{repo}/stargazers - List repo stargazers",
+      "GET /user/starred/{owner}/{repo} - Check if current user starred"
+    ]
+  },
+  "components": {
+    "entity": {
+      "file": "src/services/entities/StarEntity.ts",
+      "responsibilities": [
+        "Domain model representation",
+        "Data transformation between layers",
+        "Business rule validation",
+        "Type safety enforcement"
+      ],
+      "types": [
+        "StarEntityOpts - Constructor options",
+        "StarCreateRequest - API input type",
+        "StarResponse - API output type"
+      ]
+    },
+    "repository": {
+      "file": "src/repos/StarRepository.ts",
+      "responsibilities": [
+        "DynamoDB data access",
+        "Transaction management",
+        "Query execution",
+        "Error handling and conversion"
+      ]
+    },
+    "schema": {
+      "file": "src/repos/schema.ts (modification)",
+      "responsibilities": [
+        "DynamoDB Toolbox entity definition",
+        "Key computation logic",
+        "Attribute validation rules"
+      ],
+      "exports": [
+        "StarRecord - Entity instance",
+        "StarInput - Create/update type",
+        "StarFormatted - Query result type"
+      ]
+    },
+    "tests": {
+      "files": [
+        "src/repos/StarRepository.test.ts",
+        "src/services/entities/StarEntity.test.ts (optional)"
+      ],
+      "coverage": [
+        "Create star with valid user and repo",
+        "Create star with non-existent user (should fail)",
+        "Create star with non-existent repo (should fail)",
+        "Create duplicate star (idempotent)",
+        "Delete existing star",
+        "Delete non-existent star (idempotent)",
+        "List user's starred repos with pagination",
+        "List repo stargazers with pagination",
+        "Check star status"
+      ]
+    }
+  },
+  "dependencies": {
+    "internal": [
+      {
+        "entity": "User",
+        "reason": "Validate star references existing user",
+        "status": "IMPLEMENTED"
+      },
+      {
+        "entity": "Repository",
+        "reason": "Validate star references existing repository",
+        "status": "IMPLEMENTED"
+      }
+    ],
+    "external": [
+      {
+        "library": "dynamodb-toolbox",
+        "version": "2.7.1",
+        "usage": "Entity definition and DynamoDB operations"
+      },
+      {
+        "library": "luxon",
+        "usage": "DateTime handling for starredAt timestamp"
+      }
+    ],
+    "infrastructure": [
+      {
+        "resource": "DynamoDB Table",
+        "name": "GitHubTable",
+        "status": "EXISTS"
+      },
+      {
+        "resource": "GSI1",
+        "purpose": "Repository to stargazers queries",
+        "status": "CONFIGURED"
+      }
+    ]
+  },
+  "implementation": {
+    "sequence": [
+      {
+        "step": 1,
+        "task": "Add StarRecord to schema.ts",
+        "file": "src/repos/schema.ts",
+        "description": "Define DynamoDB Toolbox entity with key patterns"
+      },
+      {
+        "step": 2,
+        "task": "Create StarEntity class",
+        "file": "src/services/entities/StarEntity.ts",
+        "description": "Implement domain entity with transformations"
+      },
+      {
+        "step": 3,
+        "task": "Create StarRepository class",
+        "file": "src/repos/StarRepository.ts",
+        "description": "Implement data access with transactions"
+      },
+      {
+        "step": 4,
+        "task": "Write StarRepository tests",
+        "file": "src/repos/StarRepository.test.ts",
+        "description": "Comprehensive integration tests with DynamoDB Local"
+      },
+      {
+        "step": 5,
+        "task": "Update schema exports",
+        "file": "src/repos/schema.ts",
+        "description": "Add StarRecord to GithubSchema type and initializeSchema"
+      },
+      {
+        "step": 6,
+        "task": "Update repository index",
+        "file": "src/repos/index.ts",
+        "description": "Export StarRepository and related types"
+      }
+    ],
+    "estimatedEffort": "4-6 hours",
+    "risks": [
+      {
+        "risk": "Timestamp handling in composite keys",
+        "mitigation": "Use ISO 8601 format for lexicographic sorting"
+      },
+      {
+        "risk": "Query without exact timestamp for get/delete",
+        "mitigation": "Use query with begins_with pattern and limit 1"
+      }
+    ]
+  },
+  "events": {
+    "published": [
+      {
+        "event": "STAR_CREATED",
+        "payload": {
+          "user_name": "string",
+          "repo_owner": "string",
+          "repo_name": "string",
+          "starred_at": "string"
+        },
+        "trigger": "After successful star creation"
+      },
+      {
+        "event": "STAR_REMOVED",
+        "payload": {
+          "user_name": "string",
+          "repo_owner": "string",
+          "repo_name": "string"
+        },
+        "trigger": "After successful star deletion"
+      }
+    ],
+    "consumed": [],
+    "futureConsiderations": [
+      "Subscribe to USER_DELETED to clean up stars",
+      "Subscribe to REPOSITORY_DELETED to clean up stars"
+    ]
+  },
+  "performance": {
+    "queryComplexity": {
+      "star": "O(1) - Direct put with transaction",
+      "unstar": "O(1) - Query + Delete",
+      "listByUser": "O(n) - Query on partition key",
+      "listByRepo": "O(n) - Query on GSI1 partition key",
+      "isStarred": "O(1) - Query with limit 1"
+    },
+    "scalability": [
+      "Partition key (ACCOUNT#) distributes load across users",
+      "GSI1 partition key (REPO#) distributes load across repositories",
+      "Pagination prevents large result sets"
+    ],
+    "optimization": [
+      "Consider caching star counts at repository level",
+      "Consider batch operations for bulk starring"
+    ]
+  },
+  "security": {
+    "authorization": [
+      "Users can only create/delete their own stars",
+      "Read access to stars is public (like GitHub)"
+    ],
+    "validation": [
+      "Validate user exists before creating star",
+      "Validate repository exists before creating star",
+      "Sanitize input to prevent injection"
+    ]
+  },
+  "testing": {
+    "strategy": "Integration testing with DynamoDB Local",
+    "scenarios": [
+      "Happy path: star, list, check, unstar",
+      "Error cases: missing entities, validation failures",
+      "Idempotency: duplicate stars, repeated unstars",
+      "Pagination: large result sets",
+      "Concurrency: parallel star operations"
+    ]
+  }
+}
